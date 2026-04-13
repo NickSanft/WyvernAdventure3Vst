@@ -25,6 +25,9 @@ target_sources(GBCSynth PRIVATE
     Source/PulseChannel.cpp
     Source/WaveChannel.cpp
     Source/NoiseChannel.cpp
+    Source/RetroLookAndFeel.cpp
+    Source/WaveformDisplay.cpp
+    Source/WaveEditor.cpp
 )
 
 juce_generate_juce_header(GBCSynth)
