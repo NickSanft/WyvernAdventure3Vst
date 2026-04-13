@@ -42,6 +42,14 @@ juce::AudioProcessorValueTreeState::ParameterLayout GBCSynthProcessor::createPar
     params.push_back(std::make_unique<juce::AudioParameterInt>(
         juce::ParameterID("sweepShift", 1), "Sweep Shift", 0, 7, 0));
 
+    // Wave channel parameters
+    params.push_back(std::make_unique<juce::AudioParameterChoice>(
+        juce::ParameterID("waveVolume", 1), "Wave Volume",
+        juce::StringArray{ "Mute", "100%", "50%", "25%" }, 1));
+    params.push_back(std::make_unique<juce::AudioParameterChoice>(
+        juce::ParameterID("wavePreset", 1), "Wave Preset",
+        juce::StringArray{ "Triangle", "Sawtooth", "Square", "Sine", "DW3 Bass" }, 0));
+
     // Pan: 0=Left, 1=Both, 2=Right
     params.push_back(std::make_unique<juce::AudioParameterChoice>(
         juce::ParameterID("pan", 1), "Pan",
@@ -60,8 +68,10 @@ void GBCSynthProcessor::prepareToPlay(double sampleRate, int /*samplesPerBlock*/
     currentSampleRate = sampleRate;
     pulse1.setSampleRate(sampleRate);
     pulse2.setSampleRate(sampleRate);
+    wave.setSampleRate(sampleRate);
     pulse1.reset();
     pulse2.reset();
+    wave.reset();
 
     // Reset HPF state
     for (int ch = 0; ch < 2; ++ch)
@@ -97,6 +107,13 @@ void GBCSynthProcessor::updateChannelParameters()
     bool swpNeg = apvts.getRawParameterValue("sweepNegate")->load() > 0.5f;
     int swpShift = static_cast<int>(apvts.getRawParameterValue("sweepShift")->load());
     pulse1.setSweep(swpPer, swpNeg, swpShift);
+
+    // Wave channel
+    int waveVol = static_cast<int>(apvts.getRawParameterValue("waveVolume")->load());
+    int wavePreset = static_cast<int>(apvts.getRawParameterValue("wavePreset")->load());
+    wave.setVolumeCode(waveVol);
+    wave.loadPreset(wavePreset);
+    wave.setPan(panMode);
 }
 
 void GBCSynthProcessor::handleMidiEvent(const juce::MidiMessage& msg)
@@ -123,7 +140,13 @@ void GBCSynthProcessor::handleMidiEvent(const juce::MidiMessage& msg)
                 pulse2.noteOn(period, velocity);
                 break;
             }
-            // Wave and Noise channels will be added in Milestones 3 & 4
+            case 2: // Wave
+            {
+                int period = midiNoteToWavePeriod(midiNote);
+                wave.noteOn(period, velocity);
+                break;
+            }
+            // Noise channel will be added in Milestone 4
             default:
                 break;
         }
@@ -134,6 +157,7 @@ void GBCSynthProcessor::handleMidiEvent(const juce::MidiMessage& msg)
         {
             case 0: pulse1.noteOff(); break;
             case 1: pulse2.noteOff(); break;
+            case 2: wave.noteOff(); break;
             default: break;
         }
     }
@@ -168,6 +192,7 @@ void GBCSynthProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce::Mid
             {
                 case 0: mono = pulse1.processSample(); break;
                 case 1: mono = pulse2.processSample(); break;
+                case 2: mono = wave.processSample(); break;
                 default: break;
             }
 
@@ -177,6 +202,7 @@ void GBCSynthProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce::Mid
             {
                 case 0: pulse1.getStereoGain(leftGain, rightGain); break;
                 case 1: pulse2.getStereoGain(leftGain, rightGain); break;
+                case 2: wave.getStereoGain(leftGain, rightGain); break;
                 default: break;
             }
 

@@ -23,6 +23,7 @@ target_sources(GBCSynth PRIVATE
     Source/PluginProcessor.cpp
     Source/PluginEditor.cpp
     Source/PulseChannel.cpp
+    Source/WaveChannel.cpp
 )
 
 juce_generate_juce_header(GBCSynth)
