@@ -45,10 +45,10 @@ TEST_CASE("Pulse frequency is monotonically increasing with period", "[midi]")
 
 TEST_CASE("Pulse frequency formula matches expected calculation", "[midi]")
 {
-    // freq = GBC_CLOCK_HZ / (4 * (2048 - period))
+    // freq = GBC_CLOCK_HZ / (32 * (2048 - period))
     for (int p : {0, 500, 1000, 1500, 2000})
     {
-        double expected = GBC_CLOCK_HZ / (4.0 * (2048 - p));
+        double expected = GBC_CLOCK_HZ / (32.0 * (2048 - p));
         double actual = pulseFrequency(p);
         REQUIRE_THAT(actual, Catch::Matchers::WithinAbs(expected, 0.001));
     }
@@ -60,8 +60,8 @@ TEST_CASE("A4 MIDI note converts to approximately 440 Hz", "[midi]")
     int period = midiNoteToPulsePeriod(69);
     double freq = pulseFrequency(period);
 
-    // Allow ~5% tolerance due to 11-bit quantization
-    REQUIRE_THAT(freq, Catch::Matchers::WithinRel(440.0, 0.2));
+    // Allow small tolerance due to 11-bit quantization
+    REQUIRE_THAT(freq, Catch::Matchers::WithinRel(440.0, 0.02));
 }
 
 TEST_CASE("Duty table entries are 0 or 1", "[constants]")

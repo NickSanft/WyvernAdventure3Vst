@@ -81,9 +81,9 @@ TEST_CASE("PulseChannel sweep changes frequency (CH1)", "[pulse]")
     ch.setSampleRate(44100.0);
     ch.setDutyCycle(2);
     ch.setEnvelope(15, false, 0);
-    ch.setSweep(1, false, 1);  // Period 1, no negate, shift 1 (fast upward sweep)
+    ch.setSweep(1, false, 3);  // Period 1, no negate, shift 3 (upward sweep)
 
-    int period = midiNoteToPulsePeriod(80);  // High note — closer to overflow
+    int period = midiNoteToPulsePeriod(60);  // Middle C
     ch.noteOn(period, 1.0f);
 
     REQUIRE(ch.isActive());

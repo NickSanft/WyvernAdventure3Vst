@@ -12,12 +12,14 @@ static constexpr double ENVELOPE_CLOCK_HZ = 64.0;
 // Sweep clock: 128 Hz (GBC_CLOCK_HZ / 32768)
 static constexpr double SWEEP_CLOCK_HZ = 128.0;
 
-// Pulse channel: frequency = GBC_CLOCK_HZ / (4 * (2048 - period))
+// Pulse channel waveform frequency:
+// Timer ticks at GBC_CLOCK_HZ / 4, period is (2048 - register), 8 steps per cycle
+// So: freq = GBC_CLOCK_HZ / (4 * 8 * (2048 - period)) = GBC_CLOCK_HZ / (32 * (2048 - period))
 // period is 11-bit (0-2047)
 inline double pulseFrequency(int period)
 {
     if (period >= 2048) return 0.0;
-    return GBC_CLOCK_HZ / (4.0 * (2048 - period));
+    return GBC_CLOCK_HZ / (32.0 * (2048 - period));
 }
 
 // Wave channel: effective frequency = GBC_CLOCK_HZ / (2 * (2048 - period)) / 32
@@ -44,7 +46,7 @@ static const int DUTY_TABLE[4][8] = {
 inline int midiNoteToPulsePeriod(int midiNote)
 {
     double freqHz = 440.0 * std::pow(2.0, (midiNote - 69) / 12.0);
-    int period = static_cast<int>(2048.0 - GBC_CLOCK_HZ / (4.0 * freqHz));
+    int period = static_cast<int>(2048.0 - GBC_CLOCK_HZ / (32.0 * freqHz));
     return std::clamp(period, 0, 2047);
 }
 

@@ -31,10 +31,10 @@ void NoiseChannel::setSampleRate(double sampleRate)
 
 void NoiseChannel::noteOn(int /*period*/, float velocity)
 {
-    // Noise channel doesn't use period from MIDI note directly.
-    // Instead, MIDI velocity maps to envelope initial volume.
+    // Noise channel doesn't use period from MIDI note.
     // Clock shift and divisor are set via parameters.
-    envInitialVolume = std::clamp(static_cast<int>(velocity * 15.0f), 0, 15);
+    // Envelope initial volume comes from setEnvelope() (APVTS parameter).
+    (void)velocity;
     currentVolume = envInitialVolume;
     envTimer = 0.0;
 
