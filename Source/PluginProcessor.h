@@ -4,6 +4,7 @@
 #include "PulseChannel.h"
 #include "WaveChannel.h"
 #include "NoiseChannel.h"
+#include "PresetManager.h"
 
 class GBCSynthProcessor : public juce::AudioProcessor
 {
@@ -25,10 +26,11 @@ public:
     bool isMidiEffect() const override { return false; }
     double getTailLengthSeconds() const override { return 0.0; }
 
-    int getNumPrograms() override { return 1; }
-    int getCurrentProgram() override { return 0; }
-    void setCurrentProgram(int) override {}
-    const juce::String getProgramName(int) override { return {}; }
+    // FL Studio preset browser integration
+    int getNumPrograms() override { return PresetManager::getNumPresets(); }
+    int getCurrentProgram() override { return currentPreset; }
+    void setCurrentProgram(int index) override;
+    const juce::String getProgramName(int index) override;
     void changeProgramName(int, const juce::String&) override {}
 
     void getStateInformation(juce::MemoryBlock& destData) override;
@@ -36,12 +38,15 @@ public:
 
     juce::AudioProcessorValueTreeState& getAPVTS() { return apvts; }
 
-    // Ring buffer for waveform display (Milestone 6)
+    // Ring buffer for waveform display
     static constexpr int WAVEFORM_BUFFER_SIZE = 1024;
     float waveformBuffer[WAVEFORM_BUFFER_SIZE] = {};
     int waveformWritePos = 0;
 
 private:
+    // Helper to read a Choice parameter as its integer index
+    int getChoiceIndex(const juce::String& paramID) const;
+
     static juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout();
 
     void updateChannelParameters();
@@ -58,6 +63,12 @@ private:
     // Active channel for single-channel mode
     // 0 = Pulse1, 1 = Pulse2, 2 = Wave, 3 = Noise
     int activeChannel = 0;
+
+    // Note tracking — only release the note that's currently playing
+    int currentNoteNumber = -1;
+
+    // Current preset index for FL Studio program interface
+    int currentPreset = 0;
 
     // High-pass filter for DC offset removal
     float hpfPrevInput[2] = { 0.0f, 0.0f };

@@ -78,6 +78,13 @@ juce::AudioProcessorValueTreeState::ParameterLayout GBCSynthProcessor::createPar
     return { params.begin(), params.end() };
 }
 
+int GBCSynthProcessor::getChoiceIndex(const juce::String& paramID) const
+{
+    if (auto* param = dynamic_cast<juce::AudioParameterChoice*>(apvts.getParameter(paramID)))
+        return param->getIndex();
+    return 0;
+}
+
 void GBCSynthProcessor::prepareToPlay(double sampleRate, int /*samplesPerBlock*/)
 {
     currentSampleRate = sampleRate;
@@ -90,7 +97,6 @@ void GBCSynthProcessor::prepareToPlay(double sampleRate, int /*samplesPerBlock*/
     wave.reset();
     noise.reset();
 
-    // Reset HPF state
     for (int ch = 0; ch < 2; ++ch)
     {
         hpfPrevInput[ch] = 0.0f;
@@ -102,13 +108,13 @@ void GBCSynthProcessor::releaseResources() {}
 
 void GBCSynthProcessor::updateChannelParameters()
 {
-    int duty = static_cast<int>(apvts.getRawParameterValue("duty")->load());
+    // Read Choice parameters using getIndex() for correct values
+    activeChannel = getChoiceIndex("channelSelect");
+    int duty = getChoiceIndex("duty");
     int envVol = static_cast<int>(apvts.getRawParameterValue("envInitVol")->load());
-    bool envDir = apvts.getRawParameterValue("envDir")->load() > 0.5f;
+    bool envDir = getChoiceIndex("envDir") == 1;
     int envPer = static_cast<int>(apvts.getRawParameterValue("envPeriod")->load());
-    int panMode = static_cast<int>(apvts.getRawParameterValue("pan")->load());
-
-    activeChannel = static_cast<int>(apvts.getRawParameterValue("channelSelect")->load());
+    int panMode = getChoiceIndex("pan");
 
     // Apply to pulse channels
     pulse1.setDutyCycle(duty);
@@ -126,8 +132,8 @@ void GBCSynthProcessor::updateChannelParameters()
     pulse1.setSweep(swpPer, swpNeg, swpShift);
 
     // Wave channel
-    int waveVol = static_cast<int>(apvts.getRawParameterValue("waveVolume")->load());
-    int wavePreset = static_cast<int>(apvts.getRawParameterValue("wavePreset")->load());
+    int waveVol = getChoiceIndex("waveVolume");
+    int wavePreset = getChoiceIndex("wavePreset");
     wave.setVolumeCode(waveVol);
     wave.loadPreset(wavePreset);
     wave.setPan(panMode);
@@ -137,7 +143,7 @@ void GBCSynthProcessor::updateChannelParameters()
     int nDivisor = static_cast<int>(apvts.getRawParameterValue("noiseDivisor")->load());
     bool nWidth = apvts.getRawParameterValue("noiseWidth")->load() > 0.5f;
     int nEnvVol = static_cast<int>(apvts.getRawParameterValue("noiseEnvInitVol")->load());
-    bool nEnvDir = apvts.getRawParameterValue("noiseEnvDir")->load() > 0.5f;
+    bool nEnvDir = getChoiceIndex("noiseEnvDir") == 1;
     int nEnvPer = static_cast<int>(apvts.getRawParameterValue("noiseEnvPeriod")->load());
     noise.setClockShift(nClkShift);
     noise.setDivisorCode(nDivisor);
@@ -153,30 +159,32 @@ void GBCSynthProcessor::handleMidiEvent(const juce::MidiMessage& msg)
         int midiNote = msg.getNoteNumber();
         float velocity = msg.getFloatVelocity();
 
-        // Update parameters before triggering
         updateChannelParameters();
+
+        // Track the current note so we only release the right one
+        currentNoteNumber = midiNote;
 
         switch (activeChannel)
         {
-            case 0: // Pulse 1
+            case 0:
             {
                 int period = midiNoteToPulsePeriod(midiNote);
                 pulse1.noteOn(period, velocity);
                 break;
             }
-            case 1: // Pulse 2
+            case 1:
             {
                 int period = midiNoteToPulsePeriod(midiNote);
                 pulse2.noteOn(period, velocity);
                 break;
             }
-            case 2: // Wave
+            case 2:
             {
                 int period = midiNoteToWavePeriod(midiNote);
                 wave.noteOn(period, velocity);
                 break;
             }
-            case 3: // Noise
+            case 3:
             {
                 noise.noteOn(0, velocity);
                 break;
@@ -187,6 +195,12 @@ void GBCSynthProcessor::handleMidiEvent(const juce::MidiMessage& msg)
     }
     else if (msg.isNoteOff())
     {
+        // Only release if this is the note currently playing (last-note priority)
+        if (msg.getNoteNumber() != currentNoteNumber)
+            return;
+
+        currentNoteNumber = -1;
+
         switch (activeChannel)
         {
             case 0: pulse1.noteOff(); break;
@@ -206,60 +220,13 @@ void GBCSynthProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce::Mid
 
     float masterVol = apvts.getRawParameterValue("masterVolume")->load();
 
-    // Update parameters each block
     updateChannelParameters();
 
     auto* leftChannel = buffer.getWritePointer(0);
     auto* rightChannel = buffer.getNumChannels() > 1 ? buffer.getWritePointer(1) : nullptr;
 
-    int sampleIndex = 0;
-
-    for (const auto metadata : midiMessages)
-    {
-        const int eventPos = metadata.samplePosition;
-
-        // Render samples up to this MIDI event
-        while (sampleIndex < eventPos)
-        {
-            float mono = 0.0f;
-
-            switch (activeChannel)
-            {
-                case 0: mono = pulse1.processSample(); break;
-                case 1: mono = pulse2.processSample(); break;
-                case 2: mono = wave.processSample(); break;
-                case 3: mono = noise.processSample(); break;
-                default: break;
-            }
-
-            // Apply panning
-            float leftGain = 1.0f, rightGain = 1.0f;
-            switch (activeChannel)
-            {
-                case 0: pulse1.getStereoGain(leftGain, rightGain); break;
-                case 1: pulse2.getStereoGain(leftGain, rightGain); break;
-                case 2: wave.getStereoGain(leftGain, rightGain); break;
-                case 3: noise.getStereoGain(leftGain, rightGain); break;
-                default: break;
-            }
-
-            leftChannel[sampleIndex] = mono * leftGain * masterVol;
-            if (rightChannel)
-                rightChannel[sampleIndex] = mono * rightGain * masterVol;
-
-            // Write to waveform ring buffer
-            waveformBuffer[waveformWritePos] = mono;
-            waveformWritePos = (waveformWritePos + 1) % WAVEFORM_BUFFER_SIZE;
-
-            ++sampleIndex;
-        }
-
-        // Handle the MIDI event
-        handleMidiEvent(metadata.getMessage());
-    }
-
-    // Render remaining samples after last MIDI event
-    while (sampleIndex < buffer.getNumSamples())
+    // Helper lambda to render one sample at the given index
+    auto renderSample = [&](int idx)
     {
         float mono = 0.0f;
 
@@ -267,6 +234,8 @@ void GBCSynthProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce::Mid
         {
             case 0: mono = pulse1.processSample(); break;
             case 1: mono = pulse2.processSample(); break;
+            case 2: mono = wave.processSample(); break;
+            case 3: mono = noise.processSample(); break;
             default: break;
         }
 
@@ -275,18 +244,33 @@ void GBCSynthProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce::Mid
         {
             case 0: pulse1.getStereoGain(leftGain, rightGain); break;
             case 1: pulse2.getStereoGain(leftGain, rightGain); break;
+            case 2: wave.getStereoGain(leftGain, rightGain); break;
+            case 3: noise.getStereoGain(leftGain, rightGain); break;
             default: break;
         }
 
-        leftChannel[sampleIndex] = mono * leftGain * masterVol;
+        leftChannel[idx] = mono * leftGain * masterVol;
         if (rightChannel)
-            rightChannel[sampleIndex] = mono * rightGain * masterVol;
+            rightChannel[idx] = mono * rightGain * masterVol;
 
         waveformBuffer[waveformWritePos] = mono;
         waveformWritePos = (waveformWritePos + 1) % WAVEFORM_BUFFER_SIZE;
+    };
 
-        ++sampleIndex;
+    int sampleIndex = 0;
+
+    for (const auto metadata : midiMessages)
+    {
+        const int eventPos = metadata.samplePosition;
+
+        while (sampleIndex < eventPos)
+            renderSample(sampleIndex++);
+
+        handleMidiEvent(metadata.getMessage());
     }
+
+    while (sampleIndex < buffer.getNumSamples())
+        renderSample(sampleIndex++);
 
     // Apply high-pass filter (DC offset removal) to each output channel
     for (int ch = 0; ch < buffer.getNumChannels(); ++ch)
@@ -306,6 +290,20 @@ void GBCSynthProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce::Mid
 juce::AudioProcessorEditor* GBCSynthProcessor::createEditor()
 {
     return new GBCSynthEditor(*this);
+}
+
+void GBCSynthProcessor::setCurrentProgram(int index)
+{
+    if (index >= 0 && index < PresetManager::getNumPresets())
+    {
+        currentPreset = index;
+        PresetManager::applyPreset(apvts, index);
+    }
+}
+
+const juce::String GBCSynthProcessor::getProgramName(int index)
+{
+    return PresetManager::getPresetName(index);
 }
 
 void GBCSynthProcessor::getStateInformation(juce::MemoryBlock& destData)
