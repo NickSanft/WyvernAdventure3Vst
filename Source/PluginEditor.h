@@ -5,6 +5,7 @@
 #include "RetroLookAndFeel.h"
 #include "WaveformDisplay.h"
 #include "WaveEditor.h"
+#include "PresetManager.h"
 
 class GBCSynthEditor : public juce::AudioProcessorEditor
 {
@@ -69,6 +70,9 @@ private:
     std::unique_ptr<SliderAttachment> noiseEnvVolAttachment, noiseEnvPeriodAttachment;
     std::unique_ptr<SliderAttachment> masterVolumeAttachment;
     std::unique_ptr<ButtonAttachment> sweepNegateAttachment, noiseWidthAttachment;
+
+    // Preset buttons
+    std::vector<std::unique_ptr<juce::TextButton>> presetButtons;
 
     // Note activity LED state
     bool noteActive = false;

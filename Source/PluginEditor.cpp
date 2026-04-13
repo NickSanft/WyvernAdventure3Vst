@@ -6,7 +6,7 @@ GBCSynthEditor::GBCSynthEditor(GBCSynthProcessor& p)
       waveformDisplay(p)
 {
     setLookAndFeel(&retroLookAndFeel);
-    setSize(800, 560);
+    setSize(800, 590);
 
     // --- Channel select tabs ---
     const juce::StringArray tabNames{ "PULSE 1", "PULSE 2", "WAVE", "NOISE" };
@@ -113,6 +113,21 @@ GBCSynthEditor::GBCSynthEditor(GBCSynthProcessor& p)
 
     // Waveform display
     addAndMakeVisible(waveformDisplay);
+
+    // Preset buttons
+    for (int i = 0; i < PresetManager::getNumPresets(); ++i)
+    {
+        auto btn = std::make_unique<juce::TextButton>(PresetManager::getPresetName(i));
+        btn->onClick = [this, i]()
+        {
+            PresetManager::applyPreset(processorRef.getAPVTS(), i);
+            int ch = static_cast<int>(processorRef.getAPVTS().getRawParameterValue("channelSelect")->load());
+            channelTabs[ch].setToggleState(true, juce::dontSendNotification);
+            updateChannelVisibility(ch);
+        };
+        addAndMakeVisible(*btn);
+        presetButtons.push_back(std::move(btn));
+    }
 
     // Show correct channel on startup
     updateChannelVisibility(0);
@@ -381,6 +396,16 @@ void GBCSynthEditor::resized()
     // Waveform display
     auto waveformArea = area.removeFromTop(100);
     waveformDisplay.setBounds(waveformArea.reduced(0, 5));
+
+    // Preset buttons row
+    area.removeFromTop(5);
+    auto presetArea = area.removeFromTop(28);
+    if (!presetButtons.empty())
+    {
+        int btnWidth = juce::jmin(presetArea.getWidth() / static_cast<int>(presetButtons.size()), 140);
+        for (auto& btn : presetButtons)
+            btn->setBounds(presetArea.removeFromLeft(btnWidth).reduced(2, 0));
+    }
 
     area.removeFromTop(5);
 

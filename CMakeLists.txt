@@ -28,6 +28,7 @@ target_sources(GBCSynth PRIVATE
     Source/RetroLookAndFeel.cpp
     Source/WaveformDisplay.cpp
     Source/WaveEditor.cpp
+    Source/PresetManager.cpp
 )
 
 juce_generate_juce_header(GBCSynth)
