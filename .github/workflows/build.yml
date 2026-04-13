@@ -39,6 +39,9 @@ jobs:
       - name: Build
         run: cmake --build build --config Release
 
+      - name: Run Tests
+        run: ctest --test-dir build --build-config Release --output-on-failure
+
       - name: Upload VST3 artifact (Windows)
         if: runner.os == 'Windows'
         uses: actions/upload-artifact@v4
