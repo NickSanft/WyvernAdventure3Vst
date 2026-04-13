@@ -1,3 +1,20 @@
+# Build directories
+build/
+cmake-build-*/
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+
+# VST3 build output
+*.vst3
+
+# IDE files
+.vs/
+*.vcxproj*
+*.sln
+.idea/
+*.user
+
 # Prerequisites
 *.d
 
