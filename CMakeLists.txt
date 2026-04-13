@@ -24,6 +24,7 @@ target_sources(GBCSynth PRIVATE
     Source/PluginEditor.cpp
     Source/PulseChannel.cpp
     Source/WaveChannel.cpp
+    Source/NoiseChannel.cpp
 )
 
 juce_generate_juce_header(GBCSynth)

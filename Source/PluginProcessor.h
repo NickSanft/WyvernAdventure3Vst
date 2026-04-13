@@ -3,6 +3,7 @@
 #include <JuceHeader.h>
 #include "PulseChannel.h"
 #include "WaveChannel.h"
+#include "NoiseChannel.h"
 
 class GBCSynthProcessor : public juce::AudioProcessor
 {
@@ -52,6 +53,7 @@ private:
     PulseChannel pulse1{ true };   // CH1 — has frequency sweep
     PulseChannel pulse2{ false };  // CH2 — no sweep
     WaveChannel wave;              // CH3 — wavetable
+    NoiseChannel noise;            // CH4 — LFSR noise
 
     // Active channel for single-channel mode
     // 0 = Pulse1, 1 = Pulse2, 2 = Wave, 3 = Noise

@@ -50,6 +50,21 @@ juce::AudioProcessorValueTreeState::ParameterLayout GBCSynthProcessor::createPar
         juce::ParameterID("wavePreset", 1), "Wave Preset",
         juce::StringArray{ "Triangle", "Sawtooth", "Square", "Sine", "DW3 Bass" }, 0));
 
+    // Noise channel parameters
+    params.push_back(std::make_unique<juce::AudioParameterInt>(
+        juce::ParameterID("noiseClockShift", 1), "Noise Clock Shift", 0, 13, 0));
+    params.push_back(std::make_unique<juce::AudioParameterInt>(
+        juce::ParameterID("noiseDivisor", 1), "Noise Divisor", 0, 7, 0));
+    params.push_back(std::make_unique<juce::AudioParameterBool>(
+        juce::ParameterID("noiseWidth", 1), "Noise 7-bit Mode", false));
+    params.push_back(std::make_unique<juce::AudioParameterInt>(
+        juce::ParameterID("noiseEnvInitVol", 1), "Noise Env Volume", 0, 15, 15));
+    params.push_back(std::make_unique<juce::AudioParameterChoice>(
+        juce::ParameterID("noiseEnvDir", 1), "Noise Env Direction",
+        juce::StringArray{ "Down", "Up" }, 0));
+    params.push_back(std::make_unique<juce::AudioParameterInt>(
+        juce::ParameterID("noiseEnvPeriod", 1), "Noise Env Period", 0, 7, 0));
+
     // Pan: 0=Left, 1=Both, 2=Right
     params.push_back(std::make_unique<juce::AudioParameterChoice>(
         juce::ParameterID("pan", 1), "Pan",
@@ -69,9 +84,11 @@ void GBCSynthProcessor::prepareToPlay(double sampleRate, int /*samplesPerBlock*/
     pulse1.setSampleRate(sampleRate);
     pulse2.setSampleRate(sampleRate);
     wave.setSampleRate(sampleRate);
+    noise.setSampleRate(sampleRate);
     pulse1.reset();
     pulse2.reset();
     wave.reset();
+    noise.reset();
 
     // Reset HPF state
     for (int ch = 0; ch < 2; ++ch)
@@ -114,6 +131,19 @@ void GBCSynthProcessor::updateChannelParameters()
     wave.setVolumeCode(waveVol);
     wave.loadPreset(wavePreset);
     wave.setPan(panMode);
+
+    // Noise channel
+    int nClkShift = static_cast<int>(apvts.getRawParameterValue("noiseClockShift")->load());
+    int nDivisor = static_cast<int>(apvts.getRawParameterValue("noiseDivisor")->load());
+    bool nWidth = apvts.getRawParameterValue("noiseWidth")->load() > 0.5f;
+    int nEnvVol = static_cast<int>(apvts.getRawParameterValue("noiseEnvInitVol")->load());
+    bool nEnvDir = apvts.getRawParameterValue("noiseEnvDir")->load() > 0.5f;
+    int nEnvPer = static_cast<int>(apvts.getRawParameterValue("noiseEnvPeriod")->load());
+    noise.setClockShift(nClkShift);
+    noise.setDivisorCode(nDivisor);
+    noise.setWidthMode(nWidth);
+    noise.setEnvelope(nEnvVol, nEnvDir, nEnvPer);
+    noise.setPan(panMode);
 }
 
 void GBCSynthProcessor::handleMidiEvent(const juce::MidiMessage& msg)
@@ -146,7 +176,11 @@ void GBCSynthProcessor::handleMidiEvent(const juce::MidiMessage& msg)
                 wave.noteOn(period, velocity);
                 break;
             }
-            // Noise channel will be added in Milestone 4
+            case 3: // Noise
+            {
+                noise.noteOn(0, velocity);
+                break;
+            }
             default:
                 break;
         }
@@ -158,6 +192,7 @@ void GBCSynthProcessor::handleMidiEvent(const juce::MidiMessage& msg)
             case 0: pulse1.noteOff(); break;
             case 1: pulse2.noteOff(); break;
             case 2: wave.noteOff(); break;
+            case 3: noise.noteOff(); break;
             default: break;
         }
     }
@@ -193,6 +228,7 @@ void GBCSynthProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce::Mid
                 case 0: mono = pulse1.processSample(); break;
                 case 1: mono = pulse2.processSample(); break;
                 case 2: mono = wave.processSample(); break;
+                case 3: mono = noise.processSample(); break;
                 default: break;
             }
 
@@ -203,6 +239,7 @@ void GBCSynthProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce::Mid
                 case 0: pulse1.getStereoGain(leftGain, rightGain); break;
                 case 1: pulse2.getStereoGain(leftGain, rightGain); break;
                 case 2: wave.getStereoGain(leftGain, rightGain); break;
+                case 3: noise.getStereoGain(leftGain, rightGain); break;
                 default: break;
             }
 
