@@ -26,8 +26,6 @@ private:
 
     // Channel select tabs
     std::array<juce::TextButton, 4> channelTabs;
-    std::unique_ptr<ComboBoxAttachment> channelSelectAttachment;
-    juce::ComboBox channelSelectHidden;  // Hidden combo for APVTS binding
 
     // Pulse controls
     juce::ComboBox dutyCombo;

@@ -57,7 +57,11 @@ void NoiseChannel::noteOn(int /*period*/, float velocity)
 void NoiseChannel::noteOff()
 {
     noteHeld = false;
-    // Let envelope finish naturally
+
+    // If envelope is decaying (period > 0, direction down), let it finish naturally.
+    // Otherwise stop immediately — without active decay the note would play forever.
+    if (envPeriod == 0 || envDirection)
+        active = false;
 }
 
 float NoiseChannel::processSample()

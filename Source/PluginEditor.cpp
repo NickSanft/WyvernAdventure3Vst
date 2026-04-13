@@ -17,17 +17,14 @@ GBCSynthEditor::GBCSynthEditor(GBCSynthProcessor& p)
         channelTabs[i].setRadioGroupId(1001);
         channelTabs[i].onClick = [this, i]()
         {
-            channelSelectHidden.setSelectedItemIndex(i, juce::sendNotification);
+            // Set the APVTS parameter directly (more reliable than hidden combo)
+            if (auto* param = processorRef.getAPVTS().getParameter("channelSelect"))
+                param->setValueNotifyingHost(param->convertTo0to1(float(i)));
             updateChannelVisibility(i);
         };
         addAndMakeVisible(channelTabs[i]);
     }
     channelTabs[0].setToggleState(true, juce::dontSendNotification);
-
-    // Hidden combo for APVTS binding
-    channelSelectHidden.addItemList(juce::StringArray{ "Pulse 1", "Pulse 2", "Wave", "Noise" }, 1);
-    channelSelectAttachment = std::make_unique<ComboBoxAttachment>(
-        processorRef.getAPVTS(), "channelSelect", channelSelectHidden);
 
     // --- Pulse controls ---
     dutyCombo.addItemList(juce::StringArray{ "12.5%", "25%", "50%", "75%" }, 1);

@@ -74,10 +74,11 @@ void PulseChannel::noteOn(int period, float /*velocity*/)
 void PulseChannel::noteOff()
 {
     noteHeld = false;
-    // Channel stays active until envelope reaches 0 (if decreasing)
-    // or we just deactivate immediately for simplicity matching GBC behavior
-    // On real GBC, noteOff isn't a concept — the game writes to NR14/NR24
-    // For VST usability, we let the envelope finish naturally
+
+    // If envelope is decaying (period > 0, direction down), let it finish naturally.
+    // Otherwise stop immediately — without active decay the note would play forever.
+    if (envPeriod == 0 || envDirection)
+        active = false;
 }
 
 float PulseChannel::processSample()
