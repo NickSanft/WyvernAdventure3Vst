@@ -46,6 +46,14 @@ target_link_libraries(GBCSynth PRIVATE
     juce::juce_recommended_warning_flags
 )
 
+# After building VST3, copy the inner DLL as a flat .dll for FL Studio compatibility
+add_custom_command(TARGET GBCSynth_VST3 POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy
+        "$<TARGET_FILE:GBCSynth_VST3>"
+        "${CMAKE_BINARY_DIR}/GBCSynth_artefacts/$<CONFIG>/VST3/GBC Synth.dll"
+    COMMENT "Copying flat GBC Synth.dll for FL Studio compatibility"
+)
+
 # Tests
 option(BUILD_TESTS "Build unit tests" ON)
 if(BUILD_TESTS)

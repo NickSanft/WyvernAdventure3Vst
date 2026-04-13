@@ -47,7 +47,7 @@ jobs:
       - name: Package (Windows)
         if: runner.os == 'Windows'
         run: |
-          Compress-Archive -Path "build/GBCSynth_artefacts/Release/VST3/*" -DestinationPath "GBCSynth-${{ github.ref_name }}-${{ matrix.artifact_suffix }}-VST3.zip"
+          Compress-Archive -Path "build/GBCSynth_artefacts/Release/VST3/GBC Synth.vst3","build/GBCSynth_artefacts/Release/VST3/GBC Synth.dll" -DestinationPath "GBCSynth-${{ github.ref_name }}-${{ matrix.artifact_suffix }}-VST3.zip"
           Compress-Archive -Path "build/GBCSynth_artefacts/Release/Standalone/*" -DestinationPath "GBCSynth-${{ github.ref_name }}-${{ matrix.artifact_suffix }}-Standalone.zip"
         shell: pwsh
 
