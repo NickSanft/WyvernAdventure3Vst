@@ -103,7 +103,8 @@ float PulseChannel::processSample()
 
     // Advance the duty cycle phase
     // The pulse waveform has 8 steps per cycle
-    double phaseIncrement = (frequencyHz * 8.0) / hostSampleRate;
+    float vibratoMul = tickVibrato(hostSampleRate);
+    double phaseIncrement = (frequencyHz * vibratoMul * 8.0) / hostSampleRate;
     phaseAccumulator += phaseIncrement;
 
     while (phaseAccumulator >= 8.0)

@@ -12,9 +12,9 @@ void WaveEditor::paint(juce::Graphics& g)
     auto bounds = getLocalBounds().toFloat();
 
     // Background
-    g.setColour(juce::Colour(0xff0a0a14));
+    g.setColour(Theme::waveformBg());
     g.fillRoundedRectangle(bounds, 4.0f);
-    g.setColour(RetroColors::panelBorder);
+    g.setColour(RetroColors::panelBorder());
     g.drawRoundedRectangle(bounds.reduced(0.5f), 4.0f, 1.0f);
 
     auto drawArea = bounds.reduced(4.0f);
@@ -29,24 +29,24 @@ void WaveEditor::paint(juce::Graphics& g)
         float barY = drawArea.getBottom() - barHeight;
 
         // Filled bar with pixel-block appearance
-        auto barColour = RetroColors::gbcGreen.withAlpha(0.6f + 0.4f * (nibbles[i] / 15.0f));
+        auto barColour = RetroColors::gbcGreen().withAlpha(0.6f + 0.4f * (nibbles[i] / 15.0f));
         g.setColour(barColour);
         g.fillRect(x + 1.0f, barY, barWidth - 2.0f, barHeight);
 
         // Top cap (brighter)
         if (nibbles[i] > 0)
         {
-            g.setColour(RetroColors::gbcGreen);
+            g.setColour(RetroColors::gbcGreen());
             g.fillRect(x + 1.0f, barY, barWidth - 2.0f, 2.0f);
         }
 
         // Subtle grid line
-        g.setColour(RetroColors::panelBorder.withAlpha(0.2f));
+        g.setColour(RetroColors::panelBorder().withAlpha(0.2f));
         g.drawLine(x, drawArea.getY(), x, drawArea.getBottom(), 0.5f);
     }
 
     // Label
-    g.setColour(RetroColors::textSecondary);
+    g.setColour(RetroColors::textSecondary());
     g.setFont(juce::Font(juce::FontOptions(10.0f)));
     g.drawText("WAVE RAM", drawArea.removeFromTop(12), juce::Justification::centred);
 }

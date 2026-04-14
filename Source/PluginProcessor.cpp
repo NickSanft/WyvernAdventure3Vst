@@ -20,6 +20,31 @@ juce::AudioProcessorValueTreeState::ParameterLayout GBCSynthProcessor::createPar
         juce::ParameterID("channelSelect", 1), "Channel",
         juce::StringArray{ "Pulse 1", "Pulse 2", "Wave", "Noise" }, 0));
 
+    // Channel mode: Single (one channel) or Stack (all 4 simultaneously)
+    params.push_back(std::make_unique<juce::AudioParameterChoice>(
+        juce::ParameterID("channelMode", 1), "Channel Mode",
+        juce::StringArray{ "Single", "Stack" }, 0));
+
+    // Vibrato LFO
+    params.push_back(std::make_unique<juce::AudioParameterBool>(
+        juce::ParameterID("vibratoOn", 1), "Vibrato", false));
+    params.push_back(std::make_unique<juce::AudioParameterFloat>(
+        juce::ParameterID("vibratoRate", 1), "Vibrato Rate (Hz)",
+        juce::NormalisableRange<float>(1.0f, 12.0f, 0.1f), 6.0f));
+    params.push_back(std::make_unique<juce::AudioParameterFloat>(
+        juce::ParameterID("vibratoDepth", 1), "Vibrato Depth (cents)",
+        juce::NormalisableRange<float>(0.0f, 100.0f, 1.0f), 25.0f));
+
+    // Arpeggiator
+    params.push_back(std::make_unique<juce::AudioParameterBool>(
+        juce::ParameterID("arpOn", 1), "Arp", false));
+    params.push_back(std::make_unique<juce::AudioParameterFloat>(
+        juce::ParameterID("arpRate", 1), "Arp Rate (Hz)",
+        juce::NormalisableRange<float>(2.0f, 32.0f, 0.5f), 8.0f));
+    params.push_back(std::make_unique<juce::AudioParameterChoice>(
+        juce::ParameterID("arpPattern", 1), "Arp Pattern",
+        juce::StringArray{ "Up", "Down", "Up-Down", "Random" }, 0));
+
     // Duty cycle: 0=12.5%, 1=25%, 2=50%, 3=75%
     params.push_back(std::make_unique<juce::AudioParameterChoice>(
         juce::ParameterID("duty", 1), "Duty Cycle",
@@ -96,6 +121,8 @@ void GBCSynthProcessor::prepareToPlay(double sampleRate, int /*samplesPerBlock*/
     pulse2.reset();
     wave.reset();
     noise.reset();
+    arpeggiator.setSampleRate(sampleRate);
+    arpeggiator.reset();
 
     for (int ch = 0; ch < 2; ++ch)
     {
@@ -110,6 +137,24 @@ void GBCSynthProcessor::updateChannelParameters()
 {
     // Read Choice parameters using getIndex() for correct values
     activeChannel = getChoiceIndex("channelSelect");
+    channelMode = getChoiceIndex("channelMode");
+
+    // Vibrato settings (applied to pulse + wave channels)
+    bool vibOn = apvts.getRawParameterValue("vibratoOn")->load() > 0.5f;
+    float vibRate = apvts.getRawParameterValue("vibratoRate")->load();
+    float vibDepth = apvts.getRawParameterValue("vibratoDepth")->load();
+    pulse1.setVibrato(vibOn, vibRate, vibDepth);
+    pulse2.setVibrato(vibOn, vibRate, vibDepth);
+    wave.setVibrato(vibOn, vibRate, vibDepth);
+
+    // Arpeggiator settings
+    bool arpOn = apvts.getRawParameterValue("arpOn")->load() > 0.5f;
+    float arpRate = apvts.getRawParameterValue("arpRate")->load();
+    int arpPattern = getChoiceIndex("arpPattern");
+    arpeggiator.setEnabled(arpOn);
+    arpeggiator.setRateHz(arpRate);
+    arpeggiator.setPattern(static_cast<Arpeggiator::Pattern>(arpPattern));
+
     int duty = getChoiceIndex("duty");
     int envVol = static_cast<int>(apvts.getRawParameterValue("envInitVol")->load());
     bool envDir = getChoiceIndex("envDir") == 1;
@@ -152,6 +197,62 @@ void GBCSynthProcessor::updateChannelParameters()
     noise.setPan(panMode);
 }
 
+// Trigger a note on the active channel(s) based on channelMode
+void triggerNoteOn_impl(GBCSynthProcessor* self, int midiNote, float velocity,
+                        int activeChannel, int channelMode,
+                        PulseChannel& pulse1, PulseChannel& pulse2,
+                        WaveChannel& wave, NoiseChannel& noise)
+{
+    (void)self;
+    auto fire = [&](int ch)
+    {
+        switch (ch)
+        {
+            case 0: pulse1.noteOn(midiNoteToPulsePeriod(midiNote), velocity); break;
+            case 1: pulse2.noteOn(midiNoteToPulsePeriod(midiNote), velocity); break;
+            case 2: wave.noteOn(midiNoteToWavePeriod(midiNote), velocity); break;
+            case 3: noise.noteOn(0, velocity); break;
+            default: break;
+        }
+    };
+
+    if (channelMode == 1) // Stack
+    {
+        for (int ch = 0; ch < 4; ++ch)
+            fire(ch);
+    }
+    else // Single
+    {
+        fire(activeChannel);
+    }
+}
+
+void triggerNoteOff_impl(int activeChannel, int channelMode,
+                         PulseChannel& pulse1, PulseChannel& pulse2,
+                         WaveChannel& wave, NoiseChannel& noise)
+{
+    auto fire = [&](int ch)
+    {
+        switch (ch)
+        {
+            case 0: pulse1.noteOff(); break;
+            case 1: pulse2.noteOff(); break;
+            case 2: wave.noteOff(); break;
+            case 3: noise.noteOff(); break;
+            default: break;
+        }
+    };
+
+    if (channelMode == 1)
+    {
+        for (int ch = 0; ch < 4; ++ch) fire(ch);
+    }
+    else
+    {
+        fire(activeChannel);
+    }
+}
+
 void GBCSynthProcessor::handleMidiEvent(const juce::MidiMessage& msg)
 {
     if (msg.isNoteOn())
@@ -161,54 +262,41 @@ void GBCSynthProcessor::handleMidiEvent(const juce::MidiMessage& msg)
 
         updateChannelParameters();
 
-        // Track the current note so we only release the right one
-        currentNoteNumber = midiNote;
+        noteTriggered.store(true);
 
-        switch (activeChannel)
+        // If arpeggiator is on, just track the held note — arp drives actual playback
+        if (arpeggiator.isEnabled())
         {
-            case 0:
-            {
-                int period = midiNoteToPulsePeriod(midiNote);
-                pulse1.noteOn(period, velocity);
-                break;
-            }
-            case 1:
-            {
-                int period = midiNoteToPulsePeriod(midiNote);
-                pulse2.noteOn(period, velocity);
-                break;
-            }
-            case 2:
-            {
-                int period = midiNoteToWavePeriod(midiNote);
-                wave.noteOn(period, velocity);
-                break;
-            }
-            case 3:
-            {
-                noise.noteOn(0, velocity);
-                break;
-            }
-            default:
-                break;
+            arpeggiator.addNote(midiNote);
+            return;
         }
+
+        currentNoteNumber = midiNote;
+        triggerNoteOn_impl(this, midiNote, velocity, activeChannel, channelMode,
+                           pulse1, pulse2, wave, noise);
     }
     else if (msg.isNoteOff())
     {
-        // Only release if this is the note currently playing (last-note priority)
-        if (msg.getNoteNumber() != currentNoteNumber)
+        int midiNote = msg.getNoteNumber();
+
+        if (arpeggiator.isEnabled())
+        {
+            arpeggiator.removeNote(midiNote);
+            if (!arpeggiator.hasNotes())
+            {
+                triggerNoteOff_impl(activeChannel, channelMode,
+                                    pulse1, pulse2, wave, noise);
+                arpCurrentNote = -1;
+            }
+            return;
+        }
+
+        // Last-note priority: only release if this matches the current note
+        if (midiNote != currentNoteNumber)
             return;
 
         currentNoteNumber = -1;
-
-        switch (activeChannel)
-        {
-            case 0: pulse1.noteOff(); break;
-            case 1: pulse2.noteOff(); break;
-            case 2: wave.noteOff(); break;
-            case 3: noise.noteOff(); break;
-            default: break;
-        }
+        triggerNoteOff_impl(activeChannel, channelMode, pulse1, pulse2, wave, noise);
     }
 }
 
@@ -228,32 +316,56 @@ void GBCSynthProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce::Mid
     // Helper lambda to render one sample at the given index
     auto renderSample = [&](int idx)
     {
-        float mono = 0.0f;
-
-        switch (activeChannel)
+        // Arp: every sample, check if it's time to fire a step
+        int arpNote = arpeggiator.tick();
+        if (arpNote >= 0)
         {
-            case 0: mono = pulse1.processSample(); break;
-            case 1: mono = pulse2.processSample(); break;
-            case 2: mono = wave.processSample(); break;
-            case 3: mono = noise.processSample(); break;
-            default: break;
+            // Release previous arp note
+            if (arpCurrentNote >= 0)
+                triggerNoteOff_impl(activeChannel, channelMode, pulse1, pulse2, wave, noise);
+
+            arpCurrentNote = arpNote;
+            triggerNoteOn_impl(this, arpNote, 1.0f, activeChannel, channelMode,
+                               pulse1, pulse2, wave, noise);
+            noteTriggered.store(true);
         }
 
-        float leftGain = 1.0f, rightGain = 1.0f;
-        switch (activeChannel)
+        float monoLeft = 0.0f;
+        float monoRight = 0.0f;
+
+        auto mixChannel = [&](int ch)
         {
-            case 0: pulse1.getStereoGain(leftGain, rightGain); break;
-            case 1: pulse2.getStereoGain(leftGain, rightGain); break;
-            case 2: wave.getStereoGain(leftGain, rightGain); break;
-            case 3: noise.getStereoGain(leftGain, rightGain); break;
-            default: break;
+            float s = 0.0f;
+            float lGain = 1.0f, rGain = 1.0f;
+            switch (ch)
+            {
+                case 0: s = pulse1.processSample(); pulse1.getStereoGain(lGain, rGain); break;
+                case 1: s = pulse2.processSample(); pulse2.getStereoGain(lGain, rGain); break;
+                case 2: s = wave.processSample();   wave.getStereoGain(lGain, rGain);   break;
+                case 3: s = noise.processSample();  noise.getStereoGain(lGain, rGain);  break;
+            }
+            monoLeft  += s * lGain;
+            monoRight += s * rGain;
+        };
+
+        if (channelMode == 1)  // Stack — mix all 4
+        {
+            for (int ch = 0; ch < 4; ++ch) mixChannel(ch);
+            // Prevent clipping when summing 4 channels
+            monoLeft *= 0.5f;
+            monoRight *= 0.5f;
+        }
+        else
+        {
+            mixChannel(activeChannel);
         }
 
-        leftChannel[idx] = mono * leftGain * masterVol;
+        leftChannel[idx] = monoLeft * masterVol;
         if (rightChannel)
-            rightChannel[idx] = mono * rightGain * masterVol;
+            rightChannel[idx] = monoRight * masterVol;
 
-        waveformBuffer[waveformWritePos] = mono;
+        // Average for oscilloscope
+        waveformBuffer[waveformWritePos] = (monoLeft + monoRight) * 0.5f;
         waveformWritePos = (waveformWritePos + 1) % WAVEFORM_BUFFER_SIZE;
     };
 

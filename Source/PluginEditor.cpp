@@ -8,25 +8,67 @@ GBCSynthEditor::GBCSynthEditor(GBCSynthProcessor& p)
     setLookAndFeel(&retroLookAndFeel);
     setWantsKeyboardFocus(false);
     setMouseClickGrabsKeyboardFocus(false);
-    setSize(800, 590);
+    setSize(860, 660);
 
-    // --- Channel select tabs ---
+    // --- Channel select tabs with pixel-art icons ---
     const juce::StringArray tabNames{ "PULSE 1", "PULSE 2", "WAVE", "NOISE" };
     for (int i = 0; i < 4; ++i)
     {
-        channelTabs[i].setButtonText(tabNames[i]);
-        channelTabs[i].setClickingTogglesState(true);
-        channelTabs[i].setRadioGroupId(1001);
-        channelTabs[i].onClick = [this, i]()
+        channelTabs[i] = std::make_unique<ChannelTabButton>(tabNames[i], i);
+        channelTabs[i]->setClickingTogglesState(true);
+        channelTabs[i]->setRadioGroupId(1001);
+        channelTabs[i]->onClick = [this, i]()
         {
-            // Set the APVTS parameter directly (more reliable than hidden combo)
             if (auto* param = processorRef.getAPVTS().getParameter("channelSelect"))
                 param->setValueNotifyingHost(param->convertTo0to1(float(i)));
             updateChannelVisibility(i);
         };
-        addAndMakeVisible(channelTabs[i]);
+        addAndMakeVisible(*channelTabs[i]);
     }
-    channelTabs[0].setToggleState(true, juce::dontSendNotification);
+    channelTabs[0]->setToggleState(true, juce::dontSendNotification);
+
+    // --- Channel Mode (Single / Stack) ---
+    channelModeCombo.addItemList(juce::StringArray{ "Single", "Stack" }, 1);
+    addAndMakeVisible(channelModeCombo);
+    channelModeAttachment = std::make_unique<ComboBoxAttachment>(
+        processorRef.getAPVTS(), "channelMode", channelModeCombo);
+
+    // --- Day/Night theme toggle ---
+    dayNightButton.setClickingTogglesState(true);
+    dayNightButton.onClick = [this]()
+    {
+        Theme::setDayMode(dayNightButton.getToggleState());
+        dayNightButton.setButtonText(Theme::isDayMode() ? "DAY" : "NIGHT");
+        repaint();
+    };
+    addAndMakeVisible(dayNightButton);
+
+    // --- Vibrato controls ---
+    addAndMakeVisible(vibratoToggle);
+    vibratoToggleAttachment = std::make_unique<ButtonAttachment>(
+        processorRef.getAPVTS(), "vibratoOn", vibratoToggle);
+    setupRotarySlider(vibratoRateSlider);
+    vibratoRateAttachment = std::make_unique<SliderAttachment>(
+        processorRef.getAPVTS(), "vibratoRate", vibratoRateSlider);
+    setupRotarySlider(vibratoDepthSlider);
+    vibratoDepthAttachment = std::make_unique<SliderAttachment>(
+        processorRef.getAPVTS(), "vibratoDepth", vibratoDepthSlider);
+    setupLabel(vibratoRateLabel, "VIB RATE");
+    setupLabel(vibratoDepthLabel, "VIB DEPTH");
+
+    // --- Arpeggiator controls ---
+    addAndMakeVisible(arpToggle);
+    arpToggleAttachment = std::make_unique<ButtonAttachment>(
+        processorRef.getAPVTS(), "arpOn", arpToggle);
+    setupRotarySlider(arpRateSlider);
+    arpRateAttachment = std::make_unique<SliderAttachment>(
+        processorRef.getAPVTS(), "arpRate", arpRateSlider);
+    arpPatternCombo.addItemList(juce::StringArray{ "Up", "Down", "Up-Down", "Random" }, 1);
+    addAndMakeVisible(arpPatternCombo);
+    arpPatternAttachment = std::make_unique<ComboBoxAttachment>(
+        processorRef.getAPVTS(), "arpPattern", arpPatternCombo);
+    setupLabel(arpRateLabel, "ARP RATE");
+    setupLabel(arpPatternLabel, "PATTERN");
 
     // --- Pulse controls ---
     dutyCombo.addItemList(juce::StringArray{ "12.5%", "25%", "50%", "75%" }, 1);
@@ -121,7 +163,7 @@ GBCSynthEditor::GBCSynthEditor(GBCSynthProcessor& p)
         {
             PresetManager::applyPreset(processorRef.getAPVTS(), i);
             int ch = static_cast<int>(processorRef.getAPVTS().getRawParameterValue("channelSelect")->load());
-            channelTabs[ch].setToggleState(true, juce::dontSendNotification);
+            channelTabs[ch]->setToggleState(true, juce::dontSendNotification);
             updateChannelVisibility(ch);
         };
         addAndMakeVisible(*btn);
@@ -149,11 +191,113 @@ void GBCSynthEditor::disableFocusForAllChildren(juce::Component& parent)
         disableFocusForAllChildren(*child);
 }
 
+// ============================================================================
+// ChannelTabButton — tab with pixel-art icon per channel
+// ============================================================================
+
+GBCSynthEditor::ChannelTabButton::ChannelTabButton(const juce::String& text, int channelIndex)
+    : juce::TextButton(text), chIndex(channelIndex)
+{
+}
+
+void GBCSynthEditor::ChannelTabButton::paintButton(juce::Graphics& g, bool highlighted, bool down)
+{
+    auto bounds = getLocalBounds().toFloat().reduced(1.0f);
+
+    juce::Colour bgColour = getToggleState()
+        ? RetroColors::gbcDarkGreen()
+        : (down ? RetroColors::knobFill().darker(0.2f)
+                : (highlighted ? RetroColors::knobFill().brighter(0.1f) : RetroColors::knobFill()));
+
+    g.setColour(bgColour);
+    g.fillRoundedRectangle(bounds, 4.0f);
+
+    auto borderColour = getToggleState() ? RetroColors::gbcGreen() : RetroColors::panelBorder();
+    g.setColour(borderColour);
+    g.drawRoundedRectangle(bounds, 4.0f, 1.5f);
+
+    // Icon on left, text on right
+    auto iconArea = bounds.removeFromLeft(28.0f).reduced(4.0f);
+    drawIcon(g, iconArea);
+
+    auto textColour = getToggleState() ? RetroColors::gbcGreen() : RetroColors::textPrimary();
+    g.setColour(textColour);
+    g.setFont(juce::Font(juce::FontOptions(juce::Font::getDefaultMonospacedFontName(), 12.0f, juce::Font::bold)));
+    g.drawFittedText(getButtonText(), bounds.reduced(4).toNearestInt(), juce::Justification::centredLeft, 1);
+}
+
+void GBCSynthEditor::ChannelTabButton::drawIcon(juce::Graphics& g, juce::Rectangle<float> area)
+{
+    auto colour = getToggleState() ? RetroColors::gbcGreen() : RetroColors::textSecondary();
+    g.setColour(colour);
+
+    float cx = area.getCentreX();
+    float cy = area.getCentreY();
+    float s = area.getWidth() * 0.4f;  // Icon scale
+
+    switch (chIndex)
+    {
+        case 0:  // Pulse 1 — sword (attack melody)
+        {
+            // Blade
+            g.fillRect(cx - 1.0f, cy - s, 2.0f, s * 1.6f);
+            // Crossguard
+            g.fillRect(cx - s * 0.5f, cy + s * 0.3f, s, 2.0f);
+            // Handle
+            g.fillRect(cx - 0.5f, cy + s * 0.3f, 1.0f, s * 0.5f);
+            break;
+        }
+        case 1:  // Pulse 2 — shield (harmony)
+        {
+            juce::Path shield;
+            shield.startNewSubPath(cx, cy - s);
+            shield.lineTo(cx + s * 0.8f, cy - s * 0.3f);
+            shield.lineTo(cx + s * 0.5f, cy + s * 0.8f);
+            shield.lineTo(cx - s * 0.5f, cy + s * 0.8f);
+            shield.lineTo(cx - s * 0.8f, cy - s * 0.3f);
+            shield.closeSubPath();
+            g.strokePath(shield, juce::PathStrokeType(1.5f));
+            // Cross inside
+            g.drawLine(cx, cy - s * 0.4f, cx, cy + s * 0.4f, 1.0f);
+            g.drawLine(cx - s * 0.4f, cy, cx + s * 0.4f, cy, 1.0f);
+            break;
+        }
+        case 2:  // Wave — spell book
+        {
+            // Book body
+            g.drawRect(cx - s * 0.7f, cy - s * 0.7f, s * 1.4f, s * 1.4f, 1.5f);
+            // Spine
+            g.drawLine(cx, cy - s * 0.7f, cx, cy + s * 0.7f, 1.0f);
+            // Star inside
+            g.fillRect(cx - 1.0f, cy - 3.0f, 2.0f, 6.0f);
+            g.fillRect(cx - 3.0f, cy - 1.0f, 6.0f, 2.0f);
+            break;
+        }
+        case 3:  // Noise — slime
+        {
+            // Dome body
+            juce::Path slime;
+            slime.startNewSubPath(cx - s, cy + s * 0.5f);
+            slime.quadraticTo(cx - s, cy - s * 0.9f, cx, cy - s * 0.9f);
+            slime.quadraticTo(cx + s, cy - s * 0.9f, cx + s, cy + s * 0.5f);
+            slime.lineTo(cx - s, cy + s * 0.5f);
+            slime.closeSubPath();
+            g.fillPath(slime);
+            // Eyes
+            auto eyeColour = Theme::isDayMode() ? juce::Colours::white : juce::Colours::black;
+            g.setColour(eyeColour);
+            g.fillRect(cx - s * 0.4f, cy - s * 0.2f, 2.0f, 2.0f);
+            g.fillRect(cx + s * 0.2f, cy - s * 0.2f, 2.0f, 2.0f);
+            break;
+        }
+    }
+}
+
 void GBCSynthEditor::setupLabel(juce::Label& label, const juce::String& text)
 {
     label.setText(text, juce::dontSendNotification);
     label.setJustificationType(juce::Justification::centred);
-    label.setColour(juce::Label::textColourId, RetroColors::textSecondary);
+    label.setColour(juce::Label::textColourId, RetroColors::textSecondary());
     label.setFont(juce::Font(juce::FontOptions(11.0f, juce::Font::bold)));
     addAndMakeVisible(label);
 }
@@ -215,30 +359,30 @@ void GBCSynthEditor::drawHeader(juce::Graphics& g)
     auto headerBounds = getLocalBounds().removeFromTop(50);
 
     // Header background
-    g.setColour(RetroColors::headerBg);
+    g.setColour(RetroColors::headerBg());
     g.fillRect(headerBounds);
 
     // Decorative pixel border
-    g.setColour(RetroColors::gbcDarkGreen);
+    g.setColour(RetroColors::gbcDarkGreen());
     g.fillRect(headerBounds.getX(), headerBounds.getBottom() - 3, headerBounds.getWidth(), 3);
-    g.setColour(RetroColors::gbcGreen);
+    g.setColour(RetroColors::gbcGreen());
     g.fillRect(headerBounds.getX(), headerBounds.getBottom() - 2, headerBounds.getWidth(), 1);
 
     // Title — pixel-style block letters
-    g.setColour(RetroColors::gbcGreen);
+    g.setColour(RetroColors::gbcGreen());
     g.setFont(juce::Font(juce::FontOptions(juce::Font::getDefaultMonospacedFontName(), 26.0f, juce::Font::bold)));
     g.drawText("GBC SYNTH", headerBounds.reduced(15, 0).removeFromLeft(250),
                juce::Justification::centredLeft, false);
 
     // Subtitle
-    g.setColour(RetroColors::purple);
+    g.setColour(RetroColors::purple());
     g.setFont(juce::Font(juce::FontOptions(juce::Font::getDefaultMonospacedFontName(), 12.0f, juce::Font::plain)));
     g.drawText("Dragon Warrior III Edition", headerBounds.reduced(15, 0).removeFromRight(300),
                juce::Justification::centredRight, false);
 
     // Status LED (note activity indicator)
     auto ledBounds = juce::Rectangle<float>(float(headerBounds.getRight() - 35), 15.0f, 10.0f, 10.0f);
-    g.setColour(RetroColors::gbcDarkGreen);
+    g.setColour(RetroColors::gbcDarkGreen());
     g.fillEllipse(ledBounds);
     // In a future update, this could pulse based on note activity
 }
@@ -248,19 +392,19 @@ void GBCSynthEditor::drawChannelPanel(juce::Graphics& g, juce::Rectangle<int> bo
     auto boundsF = bounds.toFloat();
 
     // Panel background
-    g.setColour(RetroColors::panelBg);
+    g.setColour(RetroColors::panelBg());
     g.fillRoundedRectangle(boundsF, 6.0f);
 
     // Panel border
-    g.setColour(RetroColors::panelBorder);
+    g.setColour(RetroColors::panelBorder());
     g.drawRoundedRectangle(boundsF.reduced(0.5f), 6.0f, 1.0f);
 
     // Title bar
     auto titleBar = bounds.removeFromTop(22);
-    g.setColour(RetroColors::panelBorder.withAlpha(0.3f));
+    g.setColour(RetroColors::panelBorder().withAlpha(0.3f));
     g.fillRect(titleBar.getX() + 1, titleBar.getY() + 1, titleBar.getWidth() - 2, titleBar.getHeight());
 
-    g.setColour(RetroColors::amber);
+    g.setColour(RetroColors::amber());
     g.setFont(juce::Font(juce::FontOptions(juce::Font::getDefaultMonospacedFontName(), 11.0f, juce::Font::bold)));
     g.drawText(title, titleBar.reduced(8, 0), juce::Justification::centredLeft, false);
 }
@@ -268,7 +412,7 @@ void GBCSynthEditor::drawChannelPanel(juce::Graphics& g, juce::Rectangle<int> bo
 void GBCSynthEditor::paint(juce::Graphics& g)
 {
     // Main background
-    g.fillAll(RetroColors::background);
+    g.fillAll(RetroColors::background());
 
     // Header
     drawHeader(g);
@@ -289,17 +433,52 @@ void GBCSynthEditor::resized()
 {
     auto area = getLocalBounds();
 
-    // Header: 50px
-    area.removeFromTop(50);
+    // --- Header controls: place DAY/NIGHT button and MODE combo in header area ---
+    auto headerArea = area.removeFromTop(50);
+    dayNightButton.setBounds(headerArea.getRight() - 80, 12, 60, 26);
+    channelModeCombo.setBounds(headerArea.getRight() - 180, 15, 90, 22);
+
     area.reduce(10, 5);
 
-    // Channel tabs: 40px height
+    // Channel tabs: 40px
     auto tabArea = area.removeFromTop(40);
     int tabWidth = tabArea.getWidth() / 4;
     for (int i = 0; i < 4; ++i)
-        channelTabs[i].setBounds(tabArea.removeFromLeft(tabWidth).reduced(2));
+        channelTabs[i]->setBounds(tabArea.removeFromLeft(tabWidth).reduced(2));
 
     area.removeFromTop(5);
+
+    // Modulation row: Vibrato + Arp (50px)
+    auto modRow = area.removeFromTop(56);
+    {
+        auto vibArea = modRow.removeFromLeft(modRow.getWidth() / 2).reduced(3);
+        vibratoToggle.setBounds(vibArea.removeFromLeft(80).reduced(0, 16));
+        vibArea.removeFromLeft(5);
+
+        auto vibRateArea = vibArea.removeFromLeft(70);
+        vibratoRateLabel.setBounds(vibRateArea.removeFromTop(14));
+        vibratoRateSlider.setBounds(vibRateArea);
+
+        vibArea.removeFromLeft(5);
+        auto vibDepthArea = vibArea.removeFromLeft(70);
+        vibratoDepthLabel.setBounds(vibDepthArea.removeFromTop(14));
+        vibratoDepthSlider.setBounds(vibDepthArea);
+
+        auto arpArea = modRow.reduced(3);
+        arpToggle.setBounds(arpArea.removeFromLeft(65).reduced(0, 16));
+        arpArea.removeFromLeft(5);
+
+        auto arpRateArea = arpArea.removeFromLeft(70);
+        arpRateLabel.setBounds(arpRateArea.removeFromTop(14));
+        arpRateSlider.setBounds(arpRateArea);
+
+        arpArea.removeFromLeft(5);
+        auto arpPatArea = arpArea.removeFromLeft(100);
+        arpPatternLabel.setBounds(arpPatArea.removeFromTop(14));
+        arpPatternCombo.setBounds(arpPatArea.removeFromTop(24).reduced(0, 2));
+    }
+
+    area.removeFromTop(3);
 
     // Channel controls area: ~200px
     auto controlsArea = area.removeFromTop(200).reduced(5, 25);

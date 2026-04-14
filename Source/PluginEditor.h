@@ -24,8 +24,36 @@ private:
     GBCSynthProcessor& processorRef;
     RetroLookAndFeel retroLookAndFeel;
 
-    // Channel select tabs
-    std::array<juce::TextButton, 4> channelTabs;
+    // Channel select tabs with icons
+    class ChannelTabButton : public juce::TextButton
+    {
+    public:
+        ChannelTabButton(const juce::String& text, int channelIndex);
+        void paintButton(juce::Graphics& g, bool shouldDrawButtonAsHighlighted, bool shouldDrawButtonAsDown) override;
+    private:
+        int chIndex;
+        void drawIcon(juce::Graphics& g, juce::Rectangle<float> area);
+    };
+    std::array<std::unique_ptr<ChannelTabButton>, 4> channelTabs;
+
+    // Channel mode (Single/Stack) and Day/Night toggle
+    juce::ComboBox channelModeCombo;
+    juce::TextButton dayNightButton{ "NIGHT" };
+    std::unique_ptr<ComboBoxAttachment> channelModeAttachment;
+
+    // Vibrato + Arpeggiator controls
+    juce::ToggleButton vibratoToggle{ "Vibrato" };
+    juce::Slider vibratoRateSlider, vibratoDepthSlider;
+    juce::Label vibratoRateLabel, vibratoDepthLabel;
+
+    juce::ToggleButton arpToggle{ "Arp" };
+    juce::Slider arpRateSlider;
+    juce::ComboBox arpPatternCombo;
+    juce::Label arpRateLabel, arpPatternLabel;
+
+    std::unique_ptr<ButtonAttachment> vibratoToggleAttachment, arpToggleAttachment;
+    std::unique_ptr<SliderAttachment> vibratoRateAttachment, vibratoDepthAttachment, arpRateAttachment;
+    std::unique_ptr<ComboBoxAttachment> arpPatternAttachment;
 
     // Pulse controls
     juce::ComboBox dutyCombo;

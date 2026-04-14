@@ -99,8 +99,9 @@ float WaveChannel::processSample()
     // volumeCode: 1=100% (shift 0), 2=50% (shift 1), 3=25% (shift 2)
     int shifted = nibbleValue >> volumeShift;
 
-    // Advance sample pointer
-    double increment = (frequencyHz * 32.0) / hostSampleRate;
+    // Advance sample pointer with vibrato applied
+    float vibratoMul = tickVibrato(hostSampleRate);
+    double increment = (frequencyHz * vibratoMul * 32.0) / hostSampleRate;
     samplePointer += increment;
     while (samplePointer >= 32.0)
         samplePointer -= 32.0;

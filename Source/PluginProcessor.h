@@ -5,6 +5,8 @@
 #include "WaveChannel.h"
 #include "NoiseChannel.h"
 #include "PresetManager.h"
+#include "Arpeggiator.h"
+#include <atomic>
 
 class GBCSynthProcessor : public juce::AudioProcessor
 {
@@ -43,6 +45,9 @@ public:
     float waveformBuffer[WAVEFORM_BUFFER_SIZE] = {};
     int waveformWritePos = 0;
 
+    // Note activity flag — set on noteOn, GUI clears when it has consumed it
+    std::atomic<bool> noteTriggered{ false };
+
 private:
     // Helper to read a Choice parameter as its integer index
     int getChoiceIndex(const juce::String& paramID) const;
@@ -63,6 +68,13 @@ private:
     // Active channel for single-channel mode
     // 0 = Pulse1, 1 = Pulse2, 2 = Wave, 3 = Noise
     int activeChannel = 0;
+
+    // Channel mode: 0 = Single, 1 = Stack (all 4 play simultaneously)
+    int channelMode = 0;
+
+    // Arpeggiator
+    Arpeggiator arpeggiator;
+    int arpCurrentNote = -1;
 
     // Note tracking — only release the note that's currently playing
     int currentNoteNumber = -1;

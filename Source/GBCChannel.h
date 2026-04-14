@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include <cmath>
 
 // Abstract base class for a single GBC APU channel
 class GBCChannel
@@ -8,39 +9,59 @@ class GBCChannel
 public:
     virtual ~GBCChannel() = default;
 
-    // Reset channel to initial state
     virtual void reset() = 0;
-
-    // Set the host sample rate (e.g. 44100, 48000)
     virtual void setSampleRate(double sampleRate) = 0;
-
-    // Trigger a note with a given GBC 11-bit period register value and velocity
     virtual void noteOn(int period, float velocity) = 0;
-
-    // Release the current note
     virtual void noteOff() = 0;
-
-    // Generate one mono sample (-1.0 to +1.0)
     virtual float processSample() = 0;
-
-    // Check if the channel is currently producing sound
     virtual bool isActive() const = 0;
 
     // Stereo panning: 0 = left only, 1 = center (both), 2 = right only
     void setPan(int panMode) { pan = panMode; }
     int getPan() const { return pan; }
 
-    // Get stereo gain multipliers based on pan setting
     void getStereoGain(float& left, float& right) const
     {
         switch (pan)
         {
-            case 0: left = 1.0f; right = 0.0f; break;  // Left only
-            case 2: left = 0.0f; right = 1.0f; break;  // Right only
-            default: left = 1.0f; right = 1.0f; break;  // Both
+            case 0: left = 1.0f; right = 0.0f; break;
+            case 2: left = 0.0f; right = 1.0f; break;
+            default: left = 1.0f; right = 1.0f; break;
         }
     }
 
+    // --- Vibrato LFO ---
+    // rateHz: LFO frequency (typically 4-8 Hz for chiptune)
+    // depthCents: pitch deviation in cents (100 = 1 semitone)
+    void setVibrato(bool enabled, float rateHz, float depthCents)
+    {
+        vibratoEnabled = enabled;
+        vibratoRateHz = rateHz;
+        vibratoDepthCents = depthCents;
+    }
+
 protected:
-    int pan = 1; // Default: center (both speakers)
+    // Returns a multiplier for frequency based on LFO phase, advances the phase.
+    // 1.0 = no modulation, <1.0 = flat, >1.0 = sharp
+    float tickVibrato(double hostSampleRate)
+    {
+        if (!vibratoEnabled || vibratoDepthCents <= 0.0f)
+            return 1.0f;
+
+        vibratoPhase += 2.0 * 3.14159265358979323846 * vibratoRateHz / hostSampleRate;
+        if (vibratoPhase > 2.0 * 3.14159265358979323846)
+            vibratoPhase -= 2.0 * 3.14159265358979323846;
+
+        // Cents to frequency ratio: 2^(cents/1200)
+        float cents = std::sin(static_cast<float>(vibratoPhase)) * vibratoDepthCents;
+        return std::pow(2.0f, cents / 1200.0f);
+    }
+
+    int pan = 1;
+
+    // Vibrato state
+    bool vibratoEnabled = false;
+    float vibratoRateHz = 6.0f;
+    float vibratoDepthCents = 25.0f;
+    double vibratoPhase = 0.0;
 };
