@@ -7,6 +7,7 @@ GBCSynthEditor::GBCSynthEditor(GBCSynthProcessor& p)
 {
     setLookAndFeel(&retroLookAndFeel);
     setWantsKeyboardFocus(false);
+    setMouseClickGrabsKeyboardFocus(false);
     setSize(800, 590);
 
     // --- Channel select tabs ---
@@ -129,11 +130,23 @@ GBCSynthEditor::GBCSynthEditor(GBCSynthProcessor& p)
 
     // Show correct channel on startup
     updateChannelVisibility(0);
+
+    // Prevent all components from stealing keyboard focus from FL Studio
+    disableFocusForAllChildren(*this);
 }
 
 GBCSynthEditor::~GBCSynthEditor()
 {
     setLookAndFeel(nullptr);
+}
+
+void GBCSynthEditor::disableFocusForAllChildren(juce::Component& parent)
+{
+    parent.setWantsKeyboardFocus(false);
+    parent.setMouseClickGrabsKeyboardFocus(false);
+
+    for (auto* child : parent.getChildren())
+        disableFocusForAllChildren(*child);
 }
 
 void GBCSynthEditor::setupLabel(juce::Label& label, const juce::String& text)

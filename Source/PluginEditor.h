@@ -80,6 +80,7 @@ private:
     void updateChannelVisibility(int channel);
     void drawHeader(juce::Graphics& g);
     void drawChannelPanel(juce::Graphics& g, juce::Rectangle<int> bounds, const juce::String& title);
+    static void disableFocusForAllChildren(juce::Component& parent);
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(GBCSynthEditor)
 };
