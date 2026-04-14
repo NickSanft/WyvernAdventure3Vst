@@ -55,16 +55,12 @@ void PulseChannel::noteOn(int period, float /*velocity*/)
         sweepTimer = 0.0;
         sweepActive = (sweepPeriod > 0 && sweepShift > 0);
 
-        // Overflow check on trigger
-        if (sweepShift > 0)
-        {
-            int newFreq = calculateSweepFrequency();
-            if (newFreq > 2047)
-            {
-                active = false;
-                return;
-            }
-        }
+        // Overflow check on trigger. Real GBC silences the channel here, but
+        // for VST usability we disable the sweep instead so the note still
+        // plays — an over-aggressive upward sweep on a high note shouldn't
+        // mute the instrument entirely.
+        if (sweepShift > 0 && calculateSweepFrequency() > 2047)
+            sweepActive = false;
     }
 
     active = true;
