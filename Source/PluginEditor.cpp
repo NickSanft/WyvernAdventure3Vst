@@ -8,7 +8,9 @@ GBCSynthEditor::GBCSynthEditor(GBCSynthProcessor& p)
     setLookAndFeel(&retroLookAndFeel);
     setWantsKeyboardFocus(false);
     setMouseClickGrabsKeyboardFocus(false);
-    setSize(860, 660);
+
+    // NOTE: setSize() triggers resized() synchronously, which touches every
+    // child component. Defer it until *after* all components are created.
 
     // --- Channel select tabs with pixel-art icons ---
     const juce::StringArray tabNames{ "PULSE 1", "PULSE 2", "WAVE", "NOISE" };
@@ -163,7 +165,8 @@ GBCSynthEditor::GBCSynthEditor(GBCSynthProcessor& p)
         {
             PresetManager::applyPreset(processorRef.getAPVTS(), i);
             int ch = static_cast<int>(processorRef.getAPVTS().getRawParameterValue("channelSelect")->load());
-            channelTabs[ch]->setToggleState(true, juce::dontSendNotification);
+            if (ch >= 0 && ch < 4 && channelTabs[ch])
+                channelTabs[ch]->setToggleState(true, juce::dontSendNotification);
             updateChannelVisibility(ch);
         };
         addAndMakeVisible(*btn);
@@ -175,6 +178,9 @@ GBCSynthEditor::GBCSynthEditor(GBCSynthProcessor& p)
 
     // Prevent all components from stealing keyboard focus from FL Studio
     disableFocusForAllChildren(*this);
+
+    // Safe to size the window now that every child component exists
+    setSize(860, 660);
 }
 
 GBCSynthEditor::~GBCSynthEditor()
@@ -444,7 +450,12 @@ void GBCSynthEditor::resized()
     auto tabArea = area.removeFromTop(40);
     int tabWidth = tabArea.getWidth() / 4;
     for (int i = 0; i < 4; ++i)
-        channelTabs[i]->setBounds(tabArea.removeFromLeft(tabWidth).reduced(2));
+    {
+        if (channelTabs[i])
+            channelTabs[i]->setBounds(tabArea.removeFromLeft(tabWidth).reduced(2));
+        else
+            tabArea.removeFromLeft(tabWidth);
+    }
 
     area.removeFromTop(5);
 

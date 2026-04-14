@@ -43,6 +43,39 @@ jobs:
       - name: Run Tests
         run: ctest --test-dir build --build-config Release --output-on-failure
 
+      # --- Dry-run validation: catches startup crashes, parameter bugs, state save/restore issues ---
+      - name: Download pluginval (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          Invoke-WebRequest -Uri "https://github.com/Tracktion/pluginval/releases/download/v1.0.3/pluginval_Windows.zip" -OutFile pluginval.zip
+          Expand-Archive -Path pluginval.zip -DestinationPath pluginval_dir
+          "PLUGINVAL=$PWD\pluginval_dir\pluginval.exe" | Out-File -FilePath $env:GITHUB_ENV -Append
+
+      - name: Download pluginval (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          curl -L -o pluginval.zip https://github.com/Tracktion/pluginval/releases/download/v1.0.3/pluginval_macOS.zip
+          unzip -q pluginval.zip
+          chmod +x pluginval.app/Contents/MacOS/pluginval
+          echo "PLUGINVAL=$PWD/pluginval.app/Contents/MacOS/pluginval" >> $GITHUB_ENV
+
+      - name: Validate VST3 with pluginval (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          & "$env:PLUGINVAL" --strictness-level 5 --validate-in-process --skip-gui-tests --timeout-ms 30000 --validate "build\GBCSynth_artefacts\Release\VST3\GBC Synth.vst3"
+
+      - name: Validate VST3 with pluginval (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          "$PLUGINVAL" --strictness-level 5 --validate-in-process --skip-gui-tests --timeout-ms 30000 --validate "build/GBCSynth_artefacts/Release/VST3/GBC Synth.vst3"
+
+      - name: Smoke-test standalone (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: powershell -ExecutionPolicy Bypass -File scripts/smoke-test.ps1
+
       - name: Upload VST3 artifact (Windows)
         if: runner.os == 'Windows'
         uses: actions/upload-artifact@v4
