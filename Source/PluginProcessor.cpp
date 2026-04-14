@@ -7,6 +7,19 @@ GBCSynthProcessor::GBCSynthProcessor()
                      .withOutput("Output", juce::AudioChannelSet::stereo(), true)),
       apvts(*this, nullptr, "PARAMETERS", createParameterLayout())
 {
+    // Allocate voice pools. Each pulse1 voice has sweep enabled (CH1 behaviour),
+    // pulse2 voices do not. MAX_VOICES per pool is plenty for chords.
+    pulse1Voices.reserve(MAX_VOICES);
+    pulse2Voices.reserve(MAX_VOICES);
+    waveVoices.reserve(MAX_VOICES);
+    noiseVoices.reserve(MAX_VOICES);
+    for (int i = 0; i < MAX_VOICES; ++i)
+    {
+        pulse1Voices.emplace_back(true);   // CH1 has sweep
+        pulse2Voices.emplace_back(false);  // CH2 no sweep
+        waveVoices.emplace_back();
+        noiseVoices.emplace_back();
+    }
 }
 
 GBCSynthProcessor::~GBCSynthProcessor() {}
@@ -113,14 +126,15 @@ int GBCSynthProcessor::getChoiceIndex(const juce::String& paramID) const
 void GBCSynthProcessor::prepareToPlay(double sampleRate, int /*samplesPerBlock*/)
 {
     currentSampleRate = sampleRate;
-    pulse1.setSampleRate(sampleRate);
-    pulse2.setSampleRate(sampleRate);
-    wave.setSampleRate(sampleRate);
-    noise.setSampleRate(sampleRate);
-    pulse1.reset();
-    pulse2.reset();
-    wave.reset();
-    noise.reset();
+    for (auto& v : pulse1Voices) { v.setSampleRate(sampleRate); v.reset(); }
+    for (auto& v : pulse2Voices) { v.setSampleRate(sampleRate); v.reset(); }
+    for (auto& v : waveVoices)   { v.setSampleRate(sampleRate); v.reset(); }
+    for (auto& v : noiseVoices)  { v.setSampleRate(sampleRate); v.reset(); }
+    pulse1Slots.fill({});
+    pulse2Slots.fill({});
+    waveSlots.fill({});
+    noiseSlots.fill({});
+    voiceCounter = 0;
     arpeggiator.setSampleRate(sampleRate);
     arpeggiator.reset();
 
@@ -135,19 +149,13 @@ void GBCSynthProcessor::releaseResources() {}
 
 void GBCSynthProcessor::updateChannelParameters()
 {
-    // Read Choice parameters using getIndex() for correct values
     activeChannel = getChoiceIndex("channelSelect");
     channelMode = getChoiceIndex("channelMode");
 
-    // Vibrato settings (applied to pulse + wave channels)
     bool vibOn = apvts.getRawParameterValue("vibratoOn")->load() > 0.5f;
     float vibRate = apvts.getRawParameterValue("vibratoRate")->load();
     float vibDepth = apvts.getRawParameterValue("vibratoDepth")->load();
-    pulse1.setVibrato(vibOn, vibRate, vibDepth);
-    pulse2.setVibrato(vibOn, vibRate, vibDepth);
-    wave.setVibrato(vibOn, vibRate, vibDepth);
 
-    // Arpeggiator settings
     bool arpOn = apvts.getRawParameterValue("arpOn")->load() > 0.5f;
     float arpRate = apvts.getRawParameterValue("arpRate")->load();
     int arpPattern = getChoiceIndex("arpPattern");
@@ -161,119 +169,236 @@ void GBCSynthProcessor::updateChannelParameters()
     int envPer = static_cast<int>(apvts.getRawParameterValue("envPeriod")->load());
     int panMode = getChoiceIndex("pan");
 
-    // Apply to pulse channels
-    pulse1.setDutyCycle(duty);
-    pulse1.setEnvelope(envVol, envDir, envPer);
-    pulse1.setPan(panMode);
-
-    pulse2.setDutyCycle(duty);
-    pulse2.setEnvelope(envVol, envDir, envPer);
-    pulse2.setPan(panMode);
-
-    // Sweep (CH1 only)
     int swpPer = static_cast<int>(apvts.getRawParameterValue("sweepPeriod")->load());
     bool swpNeg = apvts.getRawParameterValue("sweepNegate")->load() > 0.5f;
     int swpShift = static_cast<int>(apvts.getRawParameterValue("sweepShift")->load());
-    pulse1.setSweep(swpPer, swpNeg, swpShift);
 
-    // Wave channel
     int waveVol = getChoiceIndex("waveVolume");
     int wavePreset = getChoiceIndex("wavePreset");
-    wave.setVolumeCode(waveVol);
-    wave.loadPreset(wavePreset);
-    wave.setPan(panMode);
 
-    // Noise channel
     int nClkShift = static_cast<int>(apvts.getRawParameterValue("noiseClockShift")->load());
     int nDivisor = static_cast<int>(apvts.getRawParameterValue("noiseDivisor")->load());
     bool nWidth = apvts.getRawParameterValue("noiseWidth")->load() > 0.5f;
     int nEnvVol = static_cast<int>(apvts.getRawParameterValue("noiseEnvInitVol")->load());
     bool nEnvDir = getChoiceIndex("noiseEnvDir") == 1;
     int nEnvPer = static_cast<int>(apvts.getRawParameterValue("noiseEnvPeriod")->load());
-    noise.setClockShift(nClkShift);
-    noise.setDivisorCode(nDivisor);
-    noise.setWidthMode(nWidth);
-    noise.setEnvelope(nEnvVol, nEnvDir, nEnvPer);
-    noise.setPan(panMode);
-}
 
-// Trigger a note on the active channel(s) based on channelMode
-void triggerNoteOn_impl(GBCSynthProcessor* self, int midiNote, float velocity,
-                        int activeChannel, int channelMode,
-                        PulseChannel& pulse1, PulseChannel& pulse2,
-                        WaveChannel& wave, NoiseChannel& noise)
-{
-    (void)self;
-    auto fire = [&](int ch)
+    // Apply shared params to every voice in every pool
+    for (auto& v : pulse1Voices)
     {
-        switch (ch)
-        {
-            case 0: pulse1.noteOn(midiNoteToPulsePeriod(midiNote), velocity); break;
-            case 1: pulse2.noteOn(midiNoteToPulsePeriod(midiNote), velocity); break;
-            case 2: wave.noteOn(midiNoteToWavePeriod(midiNote), velocity); break;
-            case 3: noise.noteOn(0, velocity); break;
-            default: break;
-        }
-    };
-
-    if (channelMode == 1) // Stack
-    {
-        for (int ch = 0; ch < 4; ++ch)
-            fire(ch);
+        v.setDutyCycle(duty);
+        v.setEnvelope(envVol, envDir, envPer);
+        v.setSweep(swpPer, swpNeg, swpShift);
+        v.setPan(panMode);
+        v.setVibrato(vibOn, vibRate, vibDepth);
     }
-    else // Single
+    for (auto& v : pulse2Voices)
     {
-        fire(activeChannel);
+        v.setDutyCycle(duty);
+        v.setEnvelope(envVol, envDir, envPer);
+        v.setPan(panMode);
+        v.setVibrato(vibOn, vibRate, vibDepth);
+    }
+    for (auto& v : waveVoices)
+    {
+        v.setVolumeCode(waveVol);
+        v.loadPreset(wavePreset);
+        v.setPan(panMode);
+        v.setVibrato(vibOn, vibRate, vibDepth);
+    }
+    for (auto& v : noiseVoices)
+    {
+        v.setClockShift(nClkShift);
+        v.setDivisorCode(nDivisor);
+        v.setWidthMode(nWidth);
+        v.setEnvelope(nEnvVol, nEnvDir, nEnvPer);
+        v.setPan(panMode);
     }
 }
 
-void triggerNoteOff_impl(int activeChannel, int channelMode,
-                         PulseChannel& pulse1, PulseChannel& pulse2,
-                         WaveChannel& wave, NoiseChannel& noise)
+// ---------------------------------------------------------------------------
+// Voice allocation helpers (templated by pool type so we can share logic)
+// ---------------------------------------------------------------------------
+namespace
 {
-    auto fire = [&](int ch)
+    template <typename VoiceT>
+    int allocateVoiceSlot(std::array<GBCSynthProcessor::VoiceSlot, GBCSynthProcessor::MAX_VOICES>& slots,
+                          std::vector<VoiceT>& voices,
+                          int midiNote,
+                          std::uint64_t& counter)
     {
-        switch (ch)
+        // 1. Prefer a voice that is no longer producing sound
+        for (int i = 0; i < GBCSynthProcessor::MAX_VOICES; ++i)
         {
-            case 0: pulse1.noteOff(); break;
-            case 1: pulse2.noteOff(); break;
-            case 2: wave.noteOff(); break;
-            case 3: noise.noteOff(); break;
-            default: break;
+            if (!voices[i].isActive())
+            {
+                slots[i].note = midiNote;
+                slots[i].age = ++counter;
+                return i;
+            }
+        }
+
+        // 2. Prefer stealing the oldest already-released slot (note == -1)
+        int bestIdx = -1;
+        std::uint64_t bestAge = UINT64_MAX;
+        for (int i = 0; i < GBCSynthProcessor::MAX_VOICES; ++i)
+        {
+            if (slots[i].note == -1 && slots[i].age < bestAge)
+            {
+                bestAge = slots[i].age;
+                bestIdx = i;
+            }
+        }
+
+        // 3. Last resort: steal the oldest held voice
+        if (bestIdx < 0)
+        {
+            bestIdx = 0;
+            bestAge = slots[0].age;
+            for (int i = 1; i < GBCSynthProcessor::MAX_VOICES; ++i)
+            {
+                if (slots[i].age < bestAge)
+                {
+                    bestAge = slots[i].age;
+                    bestIdx = i;
+                }
+            }
+        }
+
+        slots[bestIdx].note = midiNote;
+        slots[bestIdx].age = ++counter;
+        return bestIdx;
+    }
+
+    int findVoiceForNote(const std::array<GBCSynthProcessor::VoiceSlot, GBCSynthProcessor::MAX_VOICES>& slots,
+                         int midiNote)
+    {
+        for (int i = 0; i < GBCSynthProcessor::MAX_VOICES; ++i)
+            if (slots[i].note == midiNote)
+                return i;
+        return -1;
+    }
+}
+
+void GBCSynthProcessor::channelNoteOn(int channelIdx, int midiNote, float velocity)
+{
+    switch (channelIdx)
+    {
+        case 0:
+        {
+            int idx = allocateVoiceSlot(pulse1Slots, pulse1Voices, midiNote, voiceCounter);
+            pulse1Voices[idx].noteOn(midiNoteToPulsePeriod(midiNote), velocity);
+            break;
+        }
+        case 1:
+        {
+            int idx = allocateVoiceSlot(pulse2Slots, pulse2Voices, midiNote, voiceCounter);
+            pulse2Voices[idx].noteOn(midiNoteToPulsePeriod(midiNote), velocity);
+            break;
+        }
+        case 2:
+        {
+            int idx = allocateVoiceSlot(waveSlots, waveVoices, midiNote, voiceCounter);
+            waveVoices[idx].noteOn(midiNoteToWavePeriod(midiNote), velocity);
+            break;
+        }
+        case 3:
+        {
+            int idx = allocateVoiceSlot(noiseSlots, noiseVoices, midiNote, voiceCounter);
+            noiseVoices[idx].noteOn(0, velocity);
+            break;
+        }
+        default: break;
+    }
+}
+
+void GBCSynthProcessor::channelNoteOff(int channelIdx, int midiNote)
+{
+    switch (channelIdx)
+    {
+        case 0:
+        {
+            int idx = findVoiceForNote(pulse1Slots, midiNote);
+            if (idx >= 0) { pulse1Voices[idx].noteOff(); pulse1Slots[idx].note = -1; }
+            break;
+        }
+        case 1:
+        {
+            int idx = findVoiceForNote(pulse2Slots, midiNote);
+            if (idx >= 0) { pulse2Voices[idx].noteOff(); pulse2Slots[idx].note = -1; }
+            break;
+        }
+        case 2:
+        {
+            int idx = findVoiceForNote(waveSlots, midiNote);
+            if (idx >= 0) { waveVoices[idx].noteOff(); waveSlots[idx].note = -1; }
+            break;
+        }
+        case 3:
+        {
+            int idx = findVoiceForNote(noiseSlots, midiNote);
+            if (idx >= 0) { noiseVoices[idx].noteOff(); noiseSlots[idx].note = -1; }
+            break;
+        }
+        default: break;
+    }
+}
+
+void GBCSynthProcessor::channelAllNotesOff(int channelIdx)
+{
+    auto releaseAll = [&](auto& voices, auto& slots)
+    {
+        for (int i = 0; i < MAX_VOICES; ++i)
+        {
+            if (slots[i].note != -1)
+            {
+                voices[i].noteOff();
+                slots[i].note = -1;
+            }
         }
     };
 
-    if (channelMode == 1)
+    switch (channelIdx)
     {
-        for (int ch = 0; ch < 4; ++ch) fire(ch);
-    }
-    else
-    {
-        fire(activeChannel);
+        case 0: releaseAll(pulse1Voices, pulse1Slots); break;
+        case 1: releaseAll(pulse2Voices, pulse2Slots); break;
+        case 2: releaseAll(waveVoices, waveSlots);     break;
+        case 3: releaseAll(noiseVoices, noiseSlots);   break;
     }
 }
 
 void GBCSynthProcessor::handleMidiEvent(const juce::MidiMessage& msg)
 {
+    auto routeOn = [&](int midiNote, float velocity)
+    {
+        if (channelMode == 1)
+            for (int ch = 0; ch < 4; ++ch) channelNoteOn(ch, midiNote, velocity);
+        else
+            channelNoteOn(activeChannel, midiNote, velocity);
+    };
+    auto routeOff = [&](int midiNote)
+    {
+        if (channelMode == 1)
+            for (int ch = 0; ch < 4; ++ch) channelNoteOff(ch, midiNote);
+        else
+            channelNoteOff(activeChannel, midiNote);
+    };
+
     if (msg.isNoteOn())
     {
         int midiNote = msg.getNoteNumber();
         float velocity = msg.getFloatVelocity();
 
         updateChannelParameters();
-
         noteTriggered.store(true);
 
-        // If arpeggiator is on, just track the held note — arp drives actual playback
         if (arpeggiator.isEnabled())
         {
             arpeggiator.addNote(midiNote);
             return;
         }
 
-        currentNoteNumber = midiNote;
-        triggerNoteOn_impl(this, midiNote, velocity, activeChannel, channelMode,
-                           pulse1, pulse2, wave, noise);
+        routeOn(midiNote, velocity);
     }
     else if (msg.isNoteOff())
     {
@@ -282,21 +407,15 @@ void GBCSynthProcessor::handleMidiEvent(const juce::MidiMessage& msg)
         if (arpeggiator.isEnabled())
         {
             arpeggiator.removeNote(midiNote);
-            if (!arpeggiator.hasNotes())
+            if (!arpeggiator.hasNotes() && arpCurrentNote >= 0)
             {
-                triggerNoteOff_impl(activeChannel, channelMode,
-                                    pulse1, pulse2, wave, noise);
+                routeOff(arpCurrentNote);
                 arpCurrentNote = -1;
             }
             return;
         }
 
-        // Last-note priority: only release if this matches the current note
-        if (midiNote != currentNoteNumber)
-            return;
-
-        currentNoteNumber = -1;
-        triggerNoteOff_impl(activeChannel, channelMode, pulse1, pulse2, wave, noise);
+        routeOff(midiNote);
     }
 }
 
@@ -313,45 +432,63 @@ void GBCSynthProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce::Mid
     auto* leftChannel = buffer.getWritePointer(0);
     auto* rightChannel = buffer.getNumChannels() > 1 ? buffer.getWritePointer(1) : nullptr;
 
-    // Helper lambda to render one sample at the given index
+    // Render one output sample by summing every active voice in every pool
+    // that the current channelMode routes to.
     auto renderSample = [&](int idx)
     {
-        // Arp: every sample, check if it's time to fire a step
+        // Arp: fire a step when due. Uses channelNoteOn/Off so voices allocate
+        // properly (polyphony-aware), and routes through channelMode.
         int arpNote = arpeggiator.tick();
         if (arpNote >= 0)
         {
-            // Release previous arp note
             if (arpCurrentNote >= 0)
-                triggerNoteOff_impl(activeChannel, channelMode, pulse1, pulse2, wave, noise);
+            {
+                if (channelMode == 1)
+                    for (int ch = 0; ch < 4; ++ch) channelNoteOff(ch, arpCurrentNote);
+                else
+                    channelNoteOff(activeChannel, arpCurrentNote);
+            }
 
             arpCurrentNote = arpNote;
-            triggerNoteOn_impl(this, arpNote, 1.0f, activeChannel, channelMode,
-                               pulse1, pulse2, wave, noise);
+
+            if (channelMode == 1)
+                for (int ch = 0; ch < 4; ++ch) channelNoteOn(ch, arpNote, 1.0f);
+            else
+                channelNoteOn(activeChannel, arpNote, 1.0f);
+
             noteTriggered.store(true);
         }
 
         float monoLeft = 0.0f;
         float monoRight = 0.0f;
 
-        auto mixChannel = [&](int ch)
+        auto mixPool = [&](auto& voices)
         {
-            float s = 0.0f;
-            float lGain = 1.0f, rGain = 1.0f;
-            switch (ch)
+            for (auto& v : voices)
             {
-                case 0: s = pulse1.processSample(); pulse1.getStereoGain(lGain, rGain); break;
-                case 1: s = pulse2.processSample(); pulse2.getStereoGain(lGain, rGain); break;
-                case 2: s = wave.processSample();   wave.getStereoGain(lGain, rGain);   break;
-                case 3: s = noise.processSample();  noise.getStereoGain(lGain, rGain);  break;
+                if (!v.isActive()) continue;
+                float s = v.processSample();
+                float lGain, rGain;
+                v.getStereoGain(lGain, rGain);
+                monoLeft  += s * lGain;
+                monoRight += s * rGain;
             }
-            monoLeft  += s * lGain;
-            monoRight += s * rGain;
         };
 
-        if (channelMode == 1)  // Stack — mix all 4
+        auto mixChannel = [&](int ch)
+        {
+            switch (ch)
+            {
+                case 0: mixPool(pulse1Voices); break;
+                case 1: mixPool(pulse2Voices); break;
+                case 2: mixPool(waveVoices);   break;
+                case 3: mixPool(noiseVoices);  break;
+            }
+        };
+
+        if (channelMode == 1) // Stack — all 4 pools contribute
         {
             for (int ch = 0; ch < 4; ++ch) mixChannel(ch);
-            // Prevent clipping when summing 4 channels
             monoLeft *= 0.5f;
             monoRight *= 0.5f;
         }
@@ -360,11 +497,16 @@ void GBCSynthProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce::Mid
             mixChannel(activeChannel);
         }
 
+        // Scale down by sqrt(MAX_VOICES) so a chord doesn't clip. 8 voices * ~1.0
+        // peak each would sum to 8.0; we want it closer to 1.0.
+        constexpr float voiceGain = 1.0f / 2.83f;  // 1/sqrt(8)
+        monoLeft  *= voiceGain;
+        monoRight *= voiceGain;
+
         leftChannel[idx] = monoLeft * masterVol;
         if (rightChannel)
             rightChannel[idx] = monoRight * masterVol;
 
-        // Average for oscilloscope
         waveformBuffer[waveformWritePos] = (monoLeft + monoRight) * 0.5f;
         waveformWritePos = (waveformWritePos + 1) % WAVEFORM_BUFFER_SIZE;
     };
