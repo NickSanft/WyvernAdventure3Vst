@@ -6,6 +6,7 @@ GBCSynthEditor::GBCSynthEditor(GBCSynthProcessor& p)
       waveformDisplay(p)
 {
     setLookAndFeel(&retroLookAndFeel);
+    setWantsKeyboardFocus(false);
     setSize(800, 590);
 
     // --- Channel select tabs ---
