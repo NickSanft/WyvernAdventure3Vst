@@ -20,18 +20,20 @@ const std::vector<PresetManager::Preset>& PresetManager::getPresets()
             1,        // pan: Center
             0.75f     // masterVolume
         },
-        // Battle Theme — CH1 25% duty, aggressive downward "laser" sweep
-        // (DW3 battle hit sounds use a descending pitch slide)
+        // Battle Theme — CH1 25% duty, tight staccato envelope
+        // Sweep disabled: exponential sweep drags every note toward the same
+        // minimum frequency, losing pitch differentiation. Staccato envelope
+        // + bright duty cycle provides the "aggressive" character instead.
         {
             "Battle Theme",
             0,        // Pulse 1
             1,        // 25% duty (brighter, more aggressive)
             15,       // envInitVol: max
             0,        // envDir: Down
-            3,        // envPeriod: moderate decay so notes sustain before fading
-            2,        // sweepPeriod: active
-            true,     // sweepNegate: DOWNWARD sweep (safe from overflow)
-            3,        // sweepShift: gentle pitch drop
+            2,        // envPeriod: fast decay (~470 ms total) — staccato feel
+            0,        // sweepPeriod: OFF
+            false,    // sweepNegate
+            0,        // sweepShift: OFF
             1,        // waveVolume: 100%
             4,        // wavePreset: DW3 Bass
             0, 0, false, 15, 0, 0,
