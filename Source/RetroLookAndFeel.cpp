@@ -42,10 +42,22 @@ void RetroLookAndFeel::drawRotarySlider(juce::Graphics& g, int x, int y, int wid
     g.setColour(RetroColors::gbcGreen());
     g.strokePath(arcPath, juce::PathStrokeType(3.0f));
 
-    // Knob body
+    // Knob body with gradient for depth
     auto knobRadius = radius * 0.65f;
-    g.setColour(RetroColors::knobFill());
-    g.fillEllipse(centreX - knobRadius, centreY - knobRadius, knobRadius * 2.0f, knobRadius * 2.0f);
+    {
+        juce::ColourGradient grad(RetroColors::knobFill().brighter(0.15f),
+                                  centreX, centreY - knobRadius * 0.6f,
+                                  RetroColors::knobFill().darker(0.2f),
+                                  centreX, centreY + knobRadius * 0.6f,
+                                  false);
+        g.setGradientFill(grad);
+        g.fillEllipse(centreX - knobRadius, centreY - knobRadius, knobRadius * 2.0f, knobRadius * 2.0f);
+    }
+
+    // Inner highlight (subtle light rim at top)
+    g.setColour(juce::Colours::white.withAlpha(0.06f));
+    g.drawEllipse(centreX - knobRadius + 2, centreY - knobRadius + 2,
+                  (knobRadius - 2) * 2.0f, (knobRadius - 2) * 2.0f, 1.0f);
 
     // Knob border
     g.setColour(RetroColors::panelBorder());
@@ -77,7 +89,7 @@ void RetroLookAndFeel::drawRotarySlider(juce::Graphics& g, int x, int y, int wid
 
 void RetroLookAndFeel::drawLinearSlider(juce::Graphics& g, int x, int y, int width, int height,
                                          float sliderPos, float /*minSliderPos*/, float /*maxSliderPos*/,
-                                         juce::Slider::SliderStyle style, juce::Slider& /*slider*/)
+                                         juce::Slider::SliderStyle style, juce::Slider& slider)
 {
     if (style == juce::Slider::LinearHorizontal)
     {
@@ -107,7 +119,7 @@ void RetroLookAndFeel::drawLinearSlider(juce::Graphics& g, int x, int y, int wid
     else
     {
         LookAndFeel_V4::drawLinearSlider(g, x, y, width, height, sliderPos,
-                                          0, 0, style, const_cast<juce::Slider&>(static_cast<const juce::Slider&>(*static_cast<juce::Slider*>(nullptr))));
+                                          0.0f, 0.0f, style, slider);
     }
 }
 

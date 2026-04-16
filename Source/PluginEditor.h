@@ -110,5 +110,8 @@ private:
     void drawChannelPanel(juce::Graphics& g, juce::Rectangle<int> bounds, const juce::String& title);
     static void disableFocusForAllChildren(juce::Component& parent);
 
+    // Cached layout rects (set in resized, drawn in paint) so panels align with controls
+    juce::Rectangle<int> modRowRect, channelPanelRect, bottomPanelRect;
+
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(GBCSynthEditor)
 };

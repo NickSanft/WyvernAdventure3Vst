@@ -5,6 +5,7 @@ WaveEditor::WaveEditor()
     // Default triangle waveform
     for (int i = 0; i < 16; ++i) nibbles[i] = static_cast<uint8_t>(i);
     for (int i = 0; i < 16; ++i) nibbles[16 + i] = static_cast<uint8_t>(15 - i);
+    setMouseCursor(juce::MouseCursor::PointingHandCursor);
 }
 
 void WaveEditor::paint(juce::Graphics& g)
@@ -45,10 +46,10 @@ void WaveEditor::paint(juce::Graphics& g)
         g.drawLine(x, drawArea.getY(), x, drawArea.getBottom(), 0.5f);
     }
 
-    // Label
+    // Label (monospaced pixel font to match rest of UI)
     g.setColour(RetroColors::textSecondary());
-    g.setFont(juce::Font(juce::FontOptions(10.0f)));
-    g.drawText("WAVE RAM", drawArea.removeFromTop(12), juce::Justification::centred);
+    g.setFont(juce::Font(juce::FontOptions(juce::Font::getDefaultMonospacedFontName(), 10.0f, juce::Font::bold)));
+    g.drawText("WAVE RAM", bounds.reduced(4.0f).removeFromTop(14), juce::Justification::centred);
 }
 
 void WaveEditor::mouseDown(const juce::MouseEvent& event)

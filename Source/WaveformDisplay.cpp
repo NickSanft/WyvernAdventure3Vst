@@ -38,7 +38,9 @@ void WaveformDisplay::timerCallback()
     if (flashAlpha > 0.0f)
         flashAlpha = std::max(0.0f, flashAlpha - 0.15f);
 
-    repaint();
+    // Skip repaint when fully idle (no signal + no flash animation) to save CPU
+    if (currentPeakLevel > 0.001f || flashAlpha > 0.0f)
+        repaint();
 }
 
 void WaveformDisplay::triggerFlash()
@@ -68,24 +70,9 @@ void WaveformDisplay::paint(juce::Graphics& g)
     float glowAlpha = 0.05f + 0.35f * std::min(1.0f, currentPeakLevel * 1.5f);
     float glowWidth = 3.0f + 5.0f * std::min(1.0f, currentPeakLevel);
 
-    // Wide glow pass
+    // Build path once, stroke twice (glow then crisp)
+    juce::Path wavePath;
     {
-        juce::Path glowPath;
-        auto xScale = drawArea.getWidth() / float(displayBuffer.size() - 1);
-        glowPath.startNewSubPath(drawArea.getX(), centreY - displayBuffer[0] * halfHeight * 0.9f);
-        for (size_t i = 1; i < displayBuffer.size(); ++i)
-        {
-            float x = drawArea.getX() + float(i) * xScale;
-            float y = centreY - displayBuffer[i] * halfHeight * 0.9f;
-            glowPath.lineTo(x, y);
-        }
-        g.setColour(RetroColors::waveformGlow().withAlpha(glowAlpha));
-        g.strokePath(glowPath, juce::PathStrokeType(glowWidth));
-    }
-
-    // Sharp main line
-    {
-        juce::Path wavePath;
         auto xScale = drawArea.getWidth() / float(displayBuffer.size() - 1);
         wavePath.startNewSubPath(drawArea.getX(), centreY - displayBuffer[0] * halfHeight * 0.9f);
         for (size_t i = 1; i < displayBuffer.size(); ++i)
@@ -94,14 +81,20 @@ void WaveformDisplay::paint(juce::Graphics& g)
             float y = centreY - displayBuffer[i] * halfHeight * 0.9f;
             wavePath.lineTo(x, y);
         }
-        g.setColour(RetroColors::waveformGlow());
-        g.strokePath(wavePath, juce::PathStrokeType(1.5f));
     }
+
+    // Wide glow pass
+    g.setColour(RetroColors::waveformGlow().withAlpha(glowAlpha));
+    g.strokePath(wavePath, juce::PathStrokeType(glowWidth));
+
+    // Sharp main line
+    g.setColour(RetroColors::waveformGlow());
+    g.strokePath(wavePath, juce::PathStrokeType(1.5f));
 
     // CRT scanline overlay
     drawScanlines(g, drawArea);
 
-    // Note-triggered flash — brief pixel-art star burst overlay
+    // Note-triggered flash — brief star burst overlay with theme-aware colors
     if (flashAlpha > 0.0f)
     {
         g.setColour(RetroColors::amber().withAlpha(flashAlpha * 0.25f));
@@ -110,7 +103,10 @@ void WaveformDisplay::paint(juce::Graphics& g)
         float cx = drawArea.getCentreX();
         float cy = drawArea.getCentreY();
         float r = 16.0f * flashAlpha;
-        g.setColour(juce::Colours::white.withAlpha(flashAlpha));
+        // Use a theme-contrasting color so flash is visible in both day and night modes
+        g.setColour(Theme::isDayMode()
+            ? RetroColors::amber().withAlpha(flashAlpha)
+            : juce::Colours::white.withAlpha(flashAlpha));
         for (int i = 0; i < 6; ++i)
         {
             float a = i * juce::MathConstants<float>::twoPi / 6.0f;
@@ -121,7 +117,11 @@ void WaveformDisplay::paint(juce::Graphics& g)
 
 void WaveformDisplay::drawScanlines(juce::Graphics& g, juce::Rectangle<float> bounds)
 {
-    g.setColour(juce::Colour(0x08000000));
+    // Theme-aware scanline color: subtle dark on light bg, subtle light on dark bg
+    auto scanlineColour = Theme::isDayMode()
+        ? juce::Colours::black.withAlpha(0.04f)
+        : juce::Colours::white.withAlpha(0.03f);
+    g.setColour(scanlineColour);
     for (float y = bounds.getY(); y < bounds.getBottom(); y += 2.0f)
         g.drawLine(bounds.getX(), y, bounds.getRight(), y, 1.0f);
 }

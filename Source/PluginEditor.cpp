@@ -41,6 +41,23 @@ GBCSynthEditor::GBCSynthEditor(GBCSynthProcessor& p)
     {
         Theme::setDayMode(dayNightButton.getToggleState());
         dayNightButton.setButtonText(Theme::isDayMode() ? "DAY" : "NIGHT");
+
+        // Re-apply LookAndFeel colors that were cached in the constructor
+        retroLookAndFeel.setColour(juce::ComboBox::backgroundColourId, RetroColors::knobFill());
+        retroLookAndFeel.setColour(juce::ComboBox::textColourId, RetroColors::textPrimary());
+        retroLookAndFeel.setColour(juce::ComboBox::outlineColourId, RetroColors::panelBorder());
+        retroLookAndFeel.setColour(juce::ComboBox::arrowColourId, RetroColors::gbcGreen());
+        retroLookAndFeel.setColour(juce::PopupMenu::backgroundColourId, RetroColors::panelBg());
+        retroLookAndFeel.setColour(juce::PopupMenu::textColourId, RetroColors::textPrimary());
+        retroLookAndFeel.setColour(juce::PopupMenu::highlightedBackgroundColourId, RetroColors::gbcDarkGreen());
+        retroLookAndFeel.setColour(juce::PopupMenu::highlightedTextColourId, RetroColors::gbcGreen());
+        retroLookAndFeel.setColour(juce::Label::textColourId, RetroColors::textPrimary());
+        retroLookAndFeel.setColour(juce::Slider::textBoxTextColourId, RetroColors::textPrimary());
+        retroLookAndFeel.setColour(juce::Slider::textBoxBackgroundColourId, RetroColors::knobTrack());
+        retroLookAndFeel.setColour(juce::Slider::textBoxOutlineColourId, RetroColors::panelBorder());
+
+        // Notify all children that LookAndFeel colours changed
+        sendLookAndFeelChange();
         repaint();
     };
     addAndMakeVisible(dayNightButton);
@@ -423,16 +440,25 @@ void GBCSynthEditor::paint(juce::Graphics& g)
     // Header
     drawHeader(g);
 
-    // Channel controls panel
-    auto controlsArea = getLocalBounds().reduced(10).withTrimmedTop(95);
-    auto channelTitle = juce::StringArray{ "PULSE 1", "PULSE 2", "WAVE", "NOISE" };
-    int ch = static_cast<int>(processorRef.getAPVTS().getRawParameterValue("channelSelect")->load());
-    drawChannelPanel(g, controlsArea.removeFromTop(200), channelTitle[ch]);
+    // Modulation panel (Vibrato + Arp row)
+    if (!modRowRect.isEmpty())
+        drawChannelPanel(g, modRowRect, "MODULATION");
+
+    // Channel controls panel — aligned to the exact rect computed in resized()
+    if (!channelPanelRect.isEmpty())
+    {
+        auto channelTitle = juce::StringArray{ "PULSE 1", "PULSE 2", "WAVE", "NOISE" };
+        int ch = processorRef.getAPVTS().getParameter("channelSelect")
+                     ? dynamic_cast<juce::AudioParameterChoice*>(
+                           processorRef.getAPVTS().getParameter("channelSelect"))->getIndex()
+                     : 0;
+        ch = juce::jlimit(0, 3, ch);
+        drawChannelPanel(g, channelPanelRect, channelTitle[ch]);
+    }
 
     // Bottom panel for common controls
-    auto bottomArea = getLocalBounds().reduced(10);
-    bottomArea = bottomArea.removeFromBottom(45);
-    drawChannelPanel(g, bottomArea, "OUTPUT");
+    if (!bottomPanelRect.isEmpty())
+        drawChannelPanel(g, bottomPanelRect, "OUTPUT");
 }
 
 void GBCSynthEditor::resized()
@@ -491,8 +517,13 @@ void GBCSynthEditor::resized()
 
     area.removeFromTop(3);
 
+    // Store mod row rect for paint()
+    modRowRect = juce::Rectangle<int>(area.getX(), area.getY() - 59, area.getWidth(), 56);
+
     // Channel controls area: ~200px
-    auto controlsArea = area.removeFromTop(200).reduced(5, 25);
+    auto channelAreaFull = area.removeFromTop(200);
+    channelPanelRect = channelAreaFull;
+    auto controlsArea = channelAreaFull.reduced(5, 25);
 
     // --- Pulse layout ---
     {
@@ -612,6 +643,7 @@ void GBCSynthEditor::resized()
 
     // Bottom controls: pan + master volume
     auto bottomArea = area.removeFromTop(35);
+    bottomPanelRect = bottomArea;
     panLabel.setBounds(bottomArea.removeFromLeft(35));
     panCombo.setBounds(bottomArea.removeFromLeft(85).reduced(0, 5));
     bottomArea.removeFromLeft(20);
