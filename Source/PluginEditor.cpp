@@ -391,17 +391,20 @@ void GBCSynthEditor::drawHeader(juce::Graphics& g)
     g.setColour(RetroColors::gbcGreen());
     g.fillRect(headerBounds.getX(), headerBounds.getBottom() - 2, headerBounds.getWidth(), 1);
 
-    // Title — pixel-style block letters
-    g.setColour(RetroColors::gbcGreen());
-    g.setFont(juce::Font(juce::FontOptions(juce::Font::getDefaultMonospacedFontName(), 26.0f, juce::Font::bold)));
-    g.drawText("GBC SYNTH", headerBounds.reduced(15, 0).removeFromLeft(250),
-               juce::Justification::centredLeft, false);
+    // Title — pixel-style block letters, stacked with subtitle below on the left
+    auto titleArea = headerBounds.reduced(15, 4).removeFromLeft(300);
+    auto titleLine = titleArea.removeFromTop(30);
+    auto subtitleLine = titleArea;  // remaining ~16px
 
-    // Subtitle
+    g.setColour(RetroColors::gbcGreen());
+    g.setFont(juce::Font(juce::FontOptions(juce::Font::getDefaultMonospacedFontName(), 24.0f, juce::Font::bold)));
+    g.drawText("GBC SYNTH", titleLine, juce::Justification::centredLeft, false);
+
+    // Subtitle underneath title — leaves the entire top-right clear for controls
     g.setColour(RetroColors::purple());
-    g.setFont(juce::Font(juce::FontOptions(juce::Font::getDefaultMonospacedFontName(), 12.0f, juce::Font::plain)));
-    g.drawText("Dragon Warrior III Edition", headerBounds.reduced(15, 0).removeFromRight(300),
-               juce::Justification::centredRight, false);
+    g.setFont(juce::Font(juce::FontOptions(juce::Font::getDefaultMonospacedFontName(), 11.0f, juce::Font::plain)));
+    g.drawText("Dragon Warrior III Edition", subtitleLine,
+               juce::Justification::centredLeft, false);
 
     // Status LED (note activity indicator)
     auto ledBounds = juce::Rectangle<float>(float(headerBounds.getRight() - 35), 15.0f, 10.0f, 10.0f);
@@ -467,8 +470,9 @@ void GBCSynthEditor::resized()
 
     // --- Header controls: place DAY/NIGHT button and MODE combo in header area ---
     auto headerArea = area.removeFromTop(50);
-    dayNightButton.setBounds(headerArea.getRight() - 80, 12, 60, 26);
-    channelModeCombo.setBounds(headerArea.getRight() - 180, 15, 90, 22);
+    // Position controls on the right, vertically centered in the header
+    dayNightButton.setBounds(headerArea.getRight() - 80, 11, 60, 26);
+    channelModeCombo.setBounds(headerArea.getRight() - 190, 13, 100, 22);
 
     area.reduce(10, 5);
 
