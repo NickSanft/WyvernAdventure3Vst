@@ -29,6 +29,15 @@ public:
         int noiseEnvPeriod;
         int pan;              // 0=L, 1=C, 2=R
         float masterVolume;
+
+        // Modulation & mode (extended fields — added in Phase 1 preset expansion)
+        int channelMode;      // 0=Single, 1=Stack
+        bool vibratoOn;
+        float vibratoRate;    // Hz (1.0 - 12.0)
+        float vibratoDepth;   // cents (0 - 100)
+        bool arpOn;
+        float arpRate;        // Hz (2.0 - 32.0)
+        int arpPattern;       // 0=Up, 1=Down, 2=Up-Down, 3=Random
     };
 
     static const std::vector<Preset>& getPresets();

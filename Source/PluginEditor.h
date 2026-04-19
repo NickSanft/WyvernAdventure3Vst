@@ -98,7 +98,11 @@ private:
     std::unique_ptr<ButtonAttachment> sweepNegateAttachment, noiseWidthAttachment;
 
     // Preset buttons
-    std::vector<std::unique_ptr<juce::TextButton>> presetButtons;
+    // Preset browser ComboBox — scales to any number of presets
+    juce::ComboBox presetCombo;
+    juce::Label presetLabel;
+    juce::TextButton presetPrevButton{ "<" };
+    juce::TextButton presetNextButton{ ">" };
 
     // Note activity LED state
     bool noteActive = false;

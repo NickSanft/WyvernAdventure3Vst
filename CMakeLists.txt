@@ -7,7 +7,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 add_subdirectory(JUCE)
 
 juce_add_plugin(GBCSynth
-    COMPANY_NAME "WyvernStudios"
+    COMPANY_NAME "Divora"
     PLUGIN_MANUFACTURER_CODE "GBCS"
     PLUGIN_CODE "Gbc1"
     FORMATS VST3 Standalone

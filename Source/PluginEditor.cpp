@@ -174,21 +174,44 @@ GBCSynthEditor::GBCSynthEditor(GBCSynthProcessor& p)
     // Waveform display
     addAndMakeVisible(waveformDisplay);
 
-    // Preset buttons
+    // Preset browser — ComboBox with all presets + prev/next buttons
+    setupLabel(presetLabel, "PRESET");
     for (int i = 0; i < PresetManager::getNumPresets(); ++i)
+        presetCombo.addItem(PresetManager::getPresetName(i), i + 1);  // item IDs are 1-based
+    presetCombo.setSelectedId(1, juce::dontSendNotification);
+
+    auto applyPresetFromCombo = [this]()
     {
-        auto btn = std::make_unique<juce::TextButton>(PresetManager::getPresetName(i));
-        btn->onClick = [this, i]()
-        {
-            PresetManager::applyPreset(processorRef.getAPVTS(), i);
-            int ch = static_cast<int>(processorRef.getAPVTS().getRawParameterValue("channelSelect")->load());
-            if (ch >= 0 && ch < 4 && channelTabs[ch])
-                channelTabs[ch]->setToggleState(true, juce::dontSendNotification);
-            updateChannelVisibility(ch);
-        };
-        addAndMakeVisible(*btn);
-        presetButtons.push_back(std::move(btn));
-    }
+        int idx = presetCombo.getSelectedId() - 1;
+        if (idx < 0 || idx >= PresetManager::getNumPresets()) return;
+
+        PresetManager::applyPreset(processorRef.getAPVTS(), idx);
+        processorRef.setCurrentProgram(idx);
+
+        int ch = static_cast<int>(processorRef.getAPVTS().getRawParameterValue("channelSelect")->load());
+        if (ch >= 0 && ch < 4 && channelTabs[ch])
+            channelTabs[ch]->setToggleState(true, juce::dontSendNotification);
+        updateChannelVisibility(ch);
+    };
+    presetCombo.onChange = applyPresetFromCombo;
+    addAndMakeVisible(presetCombo);
+
+    presetPrevButton.onClick = [this]()
+    {
+        int cur = presetCombo.getSelectedId();
+        int n = PresetManager::getNumPresets();
+        int nextId = cur <= 1 ? n : cur - 1;
+        presetCombo.setSelectedId(nextId, juce::sendNotificationSync);
+    };
+    presetNextButton.onClick = [this]()
+    {
+        int cur = presetCombo.getSelectedId();
+        int n = PresetManager::getNumPresets();
+        int nextId = cur >= n ? 1 : cur + 1;
+        presetCombo.setSelectedId(nextId, juce::sendNotificationSync);
+    };
+    addAndMakeVisible(presetPrevButton);
+    addAndMakeVisible(presetNextButton);
 
     // Show correct channel on startup
     updateChannelVisibility(0);
@@ -633,15 +656,15 @@ void GBCSynthEditor::resized()
     auto waveformArea = area.removeFromTop(100);
     waveformDisplay.setBounds(waveformArea.reduced(0, 5));
 
-    // Preset buttons row
+    // Preset browser row: [PRESET label] [<] [dropdown] [>]
     area.removeFromTop(5);
     auto presetArea = area.removeFromTop(28);
-    if (!presetButtons.empty())
-    {
-        int btnWidth = juce::jmin(presetArea.getWidth() / static_cast<int>(presetButtons.size()), 140);
-        for (auto& btn : presetButtons)
-            btn->setBounds(presetArea.removeFromLeft(btnWidth).reduced(2, 0));
-    }
+    presetLabel.setBounds(presetArea.removeFromLeft(58));
+    presetPrevButton.setBounds(presetArea.removeFromLeft(26).reduced(2, 1));
+    presetArea.removeFromLeft(4);
+    presetNextButton.setBounds(presetArea.removeFromRight(26).reduced(2, 1));
+    presetArea.removeFromRight(4);
+    presetCombo.setBounds(presetArea.reduced(2, 1));
 
     area.removeFromTop(5);
 
