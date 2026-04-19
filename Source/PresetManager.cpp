@@ -290,6 +290,50 @@ const std::vector<PresetManager::Preset>& PresetManager::getPresets()
           2, 2, 15, 0, 0, 0, false, 0,
           1, 4, 0, 0, false, 15, 0, 0,
           1, 0.70f,
+          0, false, 6.0f, 25.0f, false, 8.0f, 0 },
+
+        // --------------------------------------------------------------
+        // Pack F — Showcase of new waveforms (Phase 2)
+        // --------------------------------------------------------------
+
+        // Organ Lead — CH3 Half-Sine, warm sustained organ tone with slow vibrato
+        { "Organ Lead",
+          2, 2, 15, 0, 0, 0, false, 0,
+          1, 5,  // wavePreset 5 = Half-Sine
+          0, 0, false, 15, 0, 0,
+          1, 0.75f,
+          0, true, 4.5f, 15.0f, false, 8.0f, 0 },
+
+        // Acid Bass Lead — CH3 Acid Bass waveform, gritty and resonant
+        { "Acid Bass Lead",
+          2, 2, 15, 0, 0, 0, false, 0,
+          1, 9,  // wavePreset 9 = Acid Bass
+          0, 0, false, 15, 0, 0,
+          1, 0.80f,
+          0, false, 6.0f, 25.0f, false, 8.0f, 0 },
+
+        // Bell Arp — CH3 Bell waveform with up-arp for glockenspiel runs
+        { "Bell Arp",
+          2, 2, 15, 0, 0, 0, false, 0,
+          1, 8,  // wavePreset 8 = Bell
+          0, 0, false, 15, 0, 0,
+          1, 0.70f,
+          0, false, 6.0f, 25.0f, true, 14.0f, 0 },
+
+        // Thick Lead — CH3 Detuned Saw, chorus-like stacked lead
+        { "Thick Lead",
+          2, 2, 15, 0, 0, 0, false, 0,
+          1, 7,  // wavePreset 7 = Detuned Saw
+          0, 0, false, 15, 0, 0,
+          1, 0.75f,
+          0, true, 5.5f, 20.0f, false, 8.0f, 0 },
+
+        // Wave Pulse Lead — CH3 Pulse 25%, bright & cutting
+        { "Wave Pulse Lead",
+          2, 1, 15, 0, 0, 0, false, 0,
+          1, 6,  // wavePreset 6 = Pulse 25%
+          0, 0, false, 15, 0, 0,
+          1, 0.75f,
           0, false, 6.0f, 25.0f, false, 8.0f, 0 }
     };
     return presets;

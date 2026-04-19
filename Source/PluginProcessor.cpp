@@ -86,7 +86,8 @@ juce::AudioProcessorValueTreeState::ParameterLayout GBCSynthProcessor::createPar
         juce::StringArray{ "Mute", "100%", "50%", "25%" }, 1));
     params.push_back(std::make_unique<juce::AudioParameterChoice>(
         juce::ParameterID("wavePreset", 1), "Wave Preset",
-        juce::StringArray{ "Triangle", "Sawtooth", "Square", "Sine", "DW3 Bass" }, 0));
+        juce::StringArray{ "Triangle", "Sawtooth", "Square", "Sine", "DW3 Bass",
+                           "Half-Sine", "Pulse 25%", "Detuned Saw", "Bell", "Acid Bass" }, 0));
 
     // Noise channel parameters
     params.push_back(std::make_unique<juce::AudioParameterInt>(

@@ -31,6 +31,39 @@ const uint8_t WaveChannel::PRESET_DW3_BASS[32] = {
     15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0
 };
 
+// Half-Sine: positive hump in the first half, silent midpoint in the second.
+// Strong even harmonics → warm, organ-like tone.
+const uint8_t WaveChannel::PRESET_HALF_SINE[32] = {
+    8, 10, 12, 13, 14, 15, 15, 15, 15, 15, 15, 14, 13, 12, 10, 8,
+    8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8
+};
+
+// Pulse 25% in wavetable form — sharper lows, extra harmonics vs pulse channel.
+const uint8_t WaveChannel::PRESET_PULSE25[32] = {
+    15, 15, 15, 15, 15, 15, 15, 15,
+    0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0
+};
+
+// Detuned Saw: two offset sawtooth ramps → thick, chorus-like lead character.
+const uint8_t WaveChannel::PRESET_DETUNED_SAW[32] = {
+    0, 2, 3, 5, 6, 8, 9, 11, 12, 14, 15, 13, 11, 9, 7, 5,
+    3, 1, 2, 4, 6, 8, 10, 12, 14, 15, 13, 11, 9, 7, 4, 2
+};
+
+// Bell: 4 triangular cycles per waveform period → bright bell/glockenspiel tone.
+const uint8_t WaveChannel::PRESET_BELL[32] = {
+    8, 12, 15, 12, 8, 4, 0, 4, 8, 12, 15, 12, 8, 4, 0, 4,
+    8, 12, 15, 12, 8, 4, 0, 4, 8, 12, 15, 12, 8, 4, 0, 4
+};
+
+// Acid Bass: rising ramp with a sharp resonant peak → funky 303-ish character.
+const uint8_t WaveChannel::PRESET_ACID_BASS[32] = {
+    0, 1, 3, 5, 7, 9, 11, 13, 15, 15, 14, 11, 7, 3, 1, 0,
+    1, 2, 4, 6, 8, 10, 12, 14, 15, 14, 12, 9, 6, 3, 1, 0
+};
+
 WaveChannel::WaveChannel()
 {
     reset();
@@ -156,12 +189,17 @@ void WaveChannel::loadPreset(int presetIndex)
 {
     switch (presetIndex)
     {
-        case 0: loadWaveform(PRESET_TRIANGLE); break;
-        case 1: loadWaveform(PRESET_SAWTOOTH); break;
-        case 2: loadWaveform(PRESET_SQUARE); break;
-        case 3: loadWaveform(PRESET_SINE); break;
-        case 4: loadWaveform(PRESET_DW3_BASS); break;
-        default: loadWaveform(PRESET_TRIANGLE); break;
+        case 0: loadWaveform(PRESET_TRIANGLE);    break;
+        case 1: loadWaveform(PRESET_SAWTOOTH);    break;
+        case 2: loadWaveform(PRESET_SQUARE);      break;
+        case 3: loadWaveform(PRESET_SINE);        break;
+        case 4: loadWaveform(PRESET_DW3_BASS);    break;
+        case 5: loadWaveform(PRESET_HALF_SINE);   break;
+        case 6: loadWaveform(PRESET_PULSE25);     break;
+        case 7: loadWaveform(PRESET_DETUNED_SAW); break;
+        case 8: loadWaveform(PRESET_BELL);        break;
+        case 9: loadWaveform(PRESET_ACID_BASS);   break;
+        default: loadWaveform(PRESET_TRIANGLE);   break;
     }
 }
 
@@ -180,7 +218,8 @@ void WaveChannel::getWaveform(uint8_t* nibbles32) const
 const char* WaveChannel::getPresetName(int index)
 {
     static const char* names[] = {
-        "Triangle", "Sawtooth", "Square", "Sine", "DW3 Bass"
+        "Triangle", "Sawtooth", "Square", "Sine", "DW3 Bass",
+        "Half-Sine", "Pulse 25%", "Detuned Saw", "Bell", "Acid Bass"
     };
     if (index >= 0 && index < NUM_PRESETS)
         return names[index];

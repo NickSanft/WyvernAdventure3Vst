@@ -35,7 +35,7 @@ public:
     void getWaveform(uint8_t* nibbles32) const;
 
     // Preset count
-    static constexpr int NUM_PRESETS = 5;
+    static constexpr int NUM_PRESETS = 10;
     static const char* getPresetName(int index);
 
 private:
@@ -63,4 +63,11 @@ private:
     static const uint8_t PRESET_SQUARE[32];
     static const uint8_t PRESET_SINE[32];
     static const uint8_t PRESET_DW3_BASS[32];
+
+    // Phase 2 additions
+    static const uint8_t PRESET_HALF_SINE[32];
+    static const uint8_t PRESET_PULSE25[32];
+    static const uint8_t PRESET_DETUNED_SAW[32];
+    static const uint8_t PRESET_BELL[32];
+    static const uint8_t PRESET_ACID_BASS[32];
 };

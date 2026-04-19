@@ -118,7 +118,8 @@ GBCSynthEditor::GBCSynthEditor(GBCSynthProcessor& p)
     addAndMakeVisible(waveVolumeCombo);
     waveVolumeAttachment = std::make_unique<ComboBoxAttachment>(processorRef.getAPVTS(), "waveVolume", waveVolumeCombo);
 
-    wavePresetCombo.addItemList(juce::StringArray{ "Triangle", "Sawtooth", "Square", "Sine", "DW3 Bass" }, 1);
+    wavePresetCombo.addItemList(juce::StringArray{ "Triangle", "Sawtooth", "Square", "Sine", "DW3 Bass",
+                                                    "Half-Sine", "Pulse 25%", "Detuned Saw", "Bell", "Acid Bass" }, 1);
     addAndMakeVisible(wavePresetCombo);
     wavePresetAttachment = std::make_unique<ComboBoxAttachment>(processorRef.getAPVTS(), "wavePreset", wavePresetCombo);
 
