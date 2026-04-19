@@ -38,6 +38,18 @@ public:
         bool arpOn;
         float arpRate;        // Hz (2.0 - 32.0)
         int arpPattern;       // 0=Up, 1=Down, 2=Up-Down, 3=Random
+
+        // ADSR envelope (Phase 3) — shared by Pulse1/2 and Wave channels
+        float envAttack;      // ms
+        float envDecay;       // ms
+        int envSustain;       // 0-15
+        float envRelease;     // ms
+
+        // Separate ADSR for Noise channel
+        float noiseAttack;
+        float noiseDecay;
+        int noiseSustain;
+        float noiseRelease;
     };
 
     static const std::vector<Preset>& getPresets();

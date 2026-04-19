@@ -78,6 +78,8 @@ void WaveChannel::reset()
     volumeShift = 0;
     active = false;
     noteHeld = false;
+    adsr.reset();
+    adsr.setPeakLevel(15.0f);
 
     // Load triangle as default waveform
     loadPreset(0);
@@ -86,20 +88,18 @@ void WaveChannel::reset()
 void WaveChannel::setSampleRate(double sampleRate)
 {
     hostSampleRate = sampleRate;
+    adsr.setSampleRate(sampleRate);
 }
 
 void WaveChannel::noteOn(int period, float /*velocity*/)
 {
     periodRegister = std::clamp(period, 0, 2047);
 
-    // Wave channel frequency: the 32-sample waveform plays at
-    // GBC_CLOCK_HZ / (2 * (2048 - period)) Hz for raw sample rate,
-    // which means the full 32-sample cycle frequency is:
-    // GBC_CLOCK_HZ / (2 * (2048 - period) * 32)
-    double rawRate = waveFrequency(periodRegister);  // This is the per-sample rate
-    frequencyHz = rawRate / 32.0;  // Full cycle frequency
+    double rawRate = waveFrequency(periodRegister);
+    frequencyHz = rawRate / 32.0;
 
     samplePointer = 0.0;
+    adsr.noteOn();
     active = true;
     noteHeld = true;
 }
@@ -107,7 +107,14 @@ void WaveChannel::noteOn(int period, float /*velocity*/)
 void WaveChannel::noteOff()
 {
     noteHeld = false;
-    active = false;  // Wave channel has no envelope — stops immediately
+    // Previously stopped immediately (wave had no envelope). Now uses GBCEnvelope
+    // release, which will decay naturally and set active = false when done.
+    adsr.noteOff();
+}
+
+void WaveChannel::setADSR(float attackMs, float decayMs, float sustainLevel, float releaseMs)
+{
+    adsr.setParams(attackMs, decayMs, sustainLevel, releaseMs);
 }
 
 float WaveChannel::processSample()
@@ -118,29 +125,35 @@ float WaveChannel::processSample()
     if (volumeCode == 0)
         return 0.0f;  // Muted
 
+    // Advance GBCEnvelope envelope
+    float envLevel = adsr.tick();
+    if (!adsr.isActive())
+    {
+        active = false;
+        return 0.0f;
+    }
+
     // Read the current nibble from wave RAM
     int sampleIndex = static_cast<int>(samplePointer) & 31;
     int byteIndex = sampleIndex / 2;
     uint8_t nibbleValue;
 
     if ((sampleIndex & 1) == 0)
-        nibbleValue = (waveRam[byteIndex] >> 4) & 0x0F;  // Upper nibble first
+        nibbleValue = (waveRam[byteIndex] >> 4) & 0x0F;
     else
-        nibbleValue = waveRam[byteIndex] & 0x0F;          // Lower nibble
+        nibbleValue = waveRam[byteIndex] & 0x0F;
 
-    // Apply volume shift
-    // volumeCode: 1=100% (shift 0), 2=50% (shift 1), 3=25% (shift 2)
     int shifted = nibbleValue >> volumeShift;
 
-    // Advance sample pointer with vibrato applied
     float vibratoMul = tickVibrato(hostSampleRate);
     double increment = (frequencyHz * vibratoMul * 32.0) / hostSampleRate;
     samplePointer += increment;
     while (samplePointer >= 32.0)
         samplePointer -= 32.0;
 
-    // Normalize: nibble range is 0-15, center at 7.5, scale to -1..+1
+    // Normalize nibble to -1..+1 then scale by GBCEnvelope level (0..15 -> 0..1)
     float sample = (static_cast<float>(shifted) - 7.5f) / 7.5f;
+    sample *= (envLevel / 15.0f);
     return sample;
 }
 

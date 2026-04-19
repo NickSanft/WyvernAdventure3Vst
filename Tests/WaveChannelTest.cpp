@@ -97,17 +97,23 @@ TEST_CASE("WaveChannel nibble set/get roundtrip", "[wave]")
         REQUIRE(result[i] == (i % 16));
 }
 
-TEST_CASE("WaveChannel noteOff stops immediately", "[wave]")
+TEST_CASE("WaveChannel noteOff triggers release and eventually silences", "[wave]")
 {
     WaveChannel ch;
     ch.setSampleRate(44100.0);
     ch.setVolumeCode(1);
+    // Instant release: attack=0, decay=0, sustain=15, release=0 → instant off
+    ch.setADSR(0.0f, 0.0f, 15.0f, 0.0f);
 
     int period = midiNoteToWavePeriod(60);
     ch.noteOn(period, 1.0f);
     REQUIRE(ch.isActive());
 
     ch.noteOff();
+
+    // After processing a few samples with release=0, channel should be inactive
+    for (int i = 0; i < 10; ++i)
+        ch.processSample();
     REQUIRE(!ch.isActive());
 
     float sample = ch.processSample();

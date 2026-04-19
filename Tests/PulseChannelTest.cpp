@@ -9,7 +9,7 @@ TEST_CASE("PulseChannel produces output in valid range", "[pulse]")
     PulseChannel ch(false);
     ch.setSampleRate(44100.0);
     ch.setDutyCycle(2);  // 50%
-    ch.setEnvelope(15, false, 0);  // Max volume, no decay
+    ch.setPeakLevel(15); ch.setADSR(0.0f, 0.0f, 15.0f, 0.0f);  // Max volume, no decay
 
     int period = midiNoteToPulsePeriod(69);
     ch.noteOn(period, 1.0f);
@@ -31,7 +31,7 @@ TEST_CASE("PulseChannel 12.5% duty has fewer positive samples than 50%", "[pulse
         PulseChannel ch(false);
         ch.setSampleRate(44100.0);
         ch.setDutyCycle(dutyMode);
-        ch.setEnvelope(15, false, 0);
+        ch.setPeakLevel(15); ch.setADSR(0.0f, 0.0f, 15.0f, 0.0f);
         int period = midiNoteToPulsePeriod(69);
         ch.noteOn(period, 1.0f);
 
@@ -56,7 +56,7 @@ TEST_CASE("PulseChannel envelope decay reduces amplitude", "[pulse]")
     PulseChannel ch(false);
     ch.setSampleRate(44100.0);
     ch.setDutyCycle(2);
-    ch.setEnvelope(15, false, 1);  // Fast decay
+    ch.setPeakLevel(15); ch.setADSR(0.0f, 200.0f, 0.0f, 0.0f);  // Fast decay
 
     int period = midiNoteToPulsePeriod(69);
     ch.noteOn(period, 1.0f);
@@ -80,7 +80,7 @@ TEST_CASE("PulseChannel sweep changes frequency (CH1)", "[pulse]")
     PulseChannel ch(true);
     ch.setSampleRate(44100.0);
     ch.setDutyCycle(2);
-    ch.setEnvelope(15, false, 0);
+    ch.setPeakLevel(15); ch.setADSR(0.0f, 0.0f, 15.0f, 0.0f);
     ch.setSweep(1, false, 3);  // Period 1, no negate, shift 3 (upward sweep)
 
     int period = midiNoteToPulsePeriod(60);  // Middle C
@@ -108,7 +108,7 @@ TEST_CASE("PulseChannel noteOff with decay envelope eventually stops", "[pulse]"
     PulseChannel ch(false);
     ch.setSampleRate(44100.0);
     ch.setDutyCycle(2);
-    ch.setEnvelope(15, false, 1);
+    ch.setPeakLevel(15); ch.setADSR(0.0f, 200.0f, 0.0f, 0.0f);
 
     int period = midiNoteToPulsePeriod(69);
     ch.noteOn(period, 1.0f);

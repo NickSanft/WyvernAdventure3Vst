@@ -15,11 +15,6 @@ void PulseChannel::reset()
     phaseAccumulator = 0.0;
     periodRegister = 0;
     frequencyHz = 0.0;
-    envInitialVolume = 15;
-    envDirection = false;
-    envPeriod = 0;
-    currentVolume = 0;
-    envTimer = 0.0;
     sweepPeriod = 0;
     sweepNegate = false;
     sweepShift = 0;
@@ -28,11 +23,13 @@ void PulseChannel::reset()
     sweepActive = false;
     active = false;
     noteHeld = false;
+    adsr.reset();
 }
 
 void PulseChannel::setSampleRate(double sampleRate)
 {
     hostSampleRate = sampleRate;
+    adsr.setSampleRate(sampleRate);
 }
 
 void PulseChannel::noteOn(int period, float /*velocity*/)
@@ -40,13 +37,8 @@ void PulseChannel::noteOn(int period, float /*velocity*/)
     periodRegister = std::clamp(period, 0, 2047);
     frequencyHz = pulseFrequency(periodRegister);
 
-    // Reset phase
     phaseAccumulator = 0.0;
     dutyStep = 0;
-
-    // Reset envelope
-    currentVolume = envInitialVolume;
-    envTimer = 0.0;
 
     // Reset sweep (CH1 only)
     if (sweepEnabled)
@@ -55,14 +47,12 @@ void PulseChannel::noteOn(int period, float /*velocity*/)
         sweepTimer = 0.0;
         sweepActive = (sweepPeriod > 0 && sweepShift > 0);
 
-        // Overflow check on trigger. Real GBC silences the channel here, but
-        // for VST usability we disable the sweep instead so the note still
-        // plays — an over-aggressive upward sweep on a high note shouldn't
-        // mute the instrument entirely.
+        // Overflow check on trigger — disable sweep rather than silence
         if (sweepShift > 0 && calculateSweepFrequency() > 2047)
             sweepActive = false;
     }
 
+    adsr.noteOn();
     active = true;
     noteHeld = true;
 }
@@ -70,11 +60,7 @@ void PulseChannel::noteOn(int period, float /*velocity*/)
 void PulseChannel::noteOff()
 {
     noteHeld = false;
-
-    // If envelope is decaying (period > 0, direction down), let it finish naturally.
-    // Otherwise stop immediately — without active decay the note would play forever.
-    if (envPeriod == 0 || envDirection)
-        active = false;
+    adsr.noteOff();
 }
 
 float PulseChannel::processSample()
@@ -82,40 +68,32 @@ float PulseChannel::processSample()
     if (!active)
         return 0.0f;
 
-    // Clock the envelope (64 Hz)
-    clockEnvelope();
+    // Advance the GBCEnvelope envelope
+    float envLevel = adsr.tick();
+    if (!adsr.isActive())
+    {
+        active = false;
+        return 0.0f;
+    }
 
     // Clock the sweep (128 Hz, CH1 only)
     if (sweepEnabled)
         clockSweep();
 
-    // If volume is 0 and envelope is decreasing (or note released), deactivate
-    if (currentVolume == 0 && !envDirection)
-    {
-        if (!noteHeld)
-            active = false;
-        return 0.0f;
-    }
-
     // Advance the duty cycle phase
-    // The pulse waveform has 8 steps per cycle
     float vibratoMul = tickVibrato(hostSampleRate);
     double phaseIncrement = (frequencyHz * vibratoMul * 8.0) / hostSampleRate;
     phaseAccumulator += phaseIncrement;
 
     while (phaseAccumulator >= 8.0)
-    {
         phaseAccumulator -= 8.0;
-    }
 
     dutyStep = static_cast<int>(phaseAccumulator) & 7;
 
-    // Look up duty table
     int dutyOutput = DUTY_TABLE[dutyMode][dutyStep];
 
-    // Scale by volume (0-15) and normalize to -1.0 to +1.0
     float sample = dutyOutput ? 1.0f : -1.0f;
-    sample *= (static_cast<float>(currentVolume) / 15.0f);
+    sample *= (envLevel / 15.0f);
 
     return sample;
 }
@@ -130,11 +108,14 @@ void PulseChannel::setDutyCycle(int duty)
     dutyMode = std::clamp(duty, 0, 3);
 }
 
-void PulseChannel::setEnvelope(int initialVol, bool direction, int period)
+void PulseChannel::setPeakLevel(int peak)
 {
-    envInitialVolume = std::clamp(initialVol, 0, 15);
-    envDirection = direction;
-    envPeriod = std::clamp(period, 0, 7);
+    adsr.setPeakLevel(static_cast<float>(std::clamp(peak, 0, 15)));
+}
+
+void PulseChannel::setADSR(float attackMs, float decayMs, float sustainLevel, float releaseMs)
+{
+    adsr.setParams(attackMs, decayMs, sustainLevel, releaseMs);
 }
 
 void PulseChannel::setSweep(int period, bool negate, int shift)
@@ -143,33 +124,6 @@ void PulseChannel::setSweep(int period, bool negate, int shift)
     sweepPeriod = std::clamp(period, 0, 7);
     sweepNegate = negate;
     sweepShift = std::clamp(shift, 0, 7);
-}
-
-void PulseChannel::clockEnvelope()
-{
-    if (envPeriod == 0) return;
-
-    envTimer += 1.0 / hostSampleRate;
-    double envClockInterval = 1.0 / ENVELOPE_CLOCK_HZ;
-    double envStepInterval = envClockInterval * envPeriod;
-
-    while (envTimer >= envStepInterval)
-    {
-        envTimer -= envStepInterval;
-
-        if (envDirection)
-        {
-            // Increase volume
-            if (currentVolume < 15)
-                currentVolume++;
-        }
-        else
-        {
-            // Decrease volume
-            if (currentVolume > 0)
-                currentVolume--;
-        }
-    }
 }
 
 void PulseChannel::clockSweep()
@@ -188,7 +142,6 @@ void PulseChannel::clockSweep()
 
         if (newFreq > 2047)
         {
-            // Overflow — silence the channel
             active = false;
             return;
         }
@@ -199,7 +152,6 @@ void PulseChannel::clockSweep()
             periodRegister = newFreq;
             frequencyHz = pulseFrequency(periodRegister);
 
-            // Second overflow check after write-back
             int checkFreq = calculateSweepFrequency();
             if (checkFreq > 2047)
             {

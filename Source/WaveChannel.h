@@ -2,6 +2,7 @@
 
 #include "GBCChannel.h"
 #include "GBCConstants.h"
+#include "GBCEnvelope.h"
 #include <cstdint>
 #include <array>
 
@@ -34,11 +35,15 @@ public:
     // Get current wave RAM as 32 nibbles (for display)
     void getWaveform(uint8_t* nibbles32) const;
 
+    // GBCEnvelope envelope (new in Phase 3 — enables pads and sustained tones on CH3)
+    void setADSR(float attackMs, float decayMs, float sustainLevel, float releaseMs);
+
     // Preset count
     static constexpr int NUM_PRESETS = 10;
     static const char* getPresetName(int index);
 
 private:
+    GBCEnvelope adsr;
     double hostSampleRate = 44100.0;
 
     // Wave RAM: 16 bytes = 32 nibbles (4-bit samples)

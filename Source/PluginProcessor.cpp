@@ -63,14 +63,44 @@ juce::AudioProcessorValueTreeState::ParameterLayout GBCSynthProcessor::createPar
         juce::ParameterID("duty", 1), "Duty Cycle",
         juce::StringArray{ "12.5%", "25%", "50%", "75%" }, 2));
 
-    // Volume envelope
+    // ADSR envelope (Phase 3 — replaces legacy envDir/envPeriod)
+    // envInitVol is kept as the "peak" level (0..15).
+    // envDir and envPeriod remain in APVTS for saved-state compatibility but
+    // are no longer applied to the DSP.
     params.push_back(std::make_unique<juce::AudioParameterInt>(
-        juce::ParameterID("envInitVol", 1), "Env Volume", 0, 15, 15));
+        juce::ParameterID("envInitVol", 1), "Env Peak", 0, 15, 15));
     params.push_back(std::make_unique<juce::AudioParameterChoice>(
-        juce::ParameterID("envDir", 1), "Env Direction",
+        juce::ParameterID("envDir", 1), "Env Direction (legacy)",
         juce::StringArray{ "Down", "Up" }, 0));
     params.push_back(std::make_unique<juce::AudioParameterInt>(
-        juce::ParameterID("envPeriod", 1), "Env Period", 0, 7, 0));
+        juce::ParameterID("envPeriod", 1), "Env Period (legacy)", 0, 7, 0));
+
+    // New ADSR params (milliseconds / level)
+    params.push_back(std::make_unique<juce::AudioParameterFloat>(
+        juce::ParameterID("envAttack", 1), "Env Attack",
+        juce::NormalisableRange<float>(0.0f, 2000.0f, 1.0f, 0.4f), 0.0f));
+    params.push_back(std::make_unique<juce::AudioParameterFloat>(
+        juce::ParameterID("envDecay", 1), "Env Decay",
+        juce::NormalisableRange<float>(0.0f, 2000.0f, 1.0f, 0.4f), 200.0f));
+    params.push_back(std::make_unique<juce::AudioParameterInt>(
+        juce::ParameterID("envSustain", 1), "Env Sustain", 0, 15, 0));
+    params.push_back(std::make_unique<juce::AudioParameterFloat>(
+        juce::ParameterID("envRelease", 1), "Env Release",
+        juce::NormalisableRange<float>(0.0f, 2000.0f, 1.0f, 0.4f), 50.0f));
+
+    // Same envelope but for noise channel (independent set — noise traditionally
+    // has its own envelope controls in the GUI)
+    params.push_back(std::make_unique<juce::AudioParameterFloat>(
+        juce::ParameterID("noiseAttack", 1), "Noise Attack",
+        juce::NormalisableRange<float>(0.0f, 2000.0f, 1.0f, 0.4f), 0.0f));
+    params.push_back(std::make_unique<juce::AudioParameterFloat>(
+        juce::ParameterID("noiseDecay", 1), "Noise Decay",
+        juce::NormalisableRange<float>(0.0f, 2000.0f, 1.0f, 0.4f), 150.0f));
+    params.push_back(std::make_unique<juce::AudioParameterInt>(
+        juce::ParameterID("noiseSustain", 1), "Noise Sustain", 0, 15, 0));
+    params.push_back(std::make_unique<juce::AudioParameterFloat>(
+        juce::ParameterID("noiseRelease", 1), "Noise Release",
+        juce::NormalisableRange<float>(0.0f, 2000.0f, 1.0f, 0.4f), 50.0f));
 
     // Frequency sweep (CH1 only)
     params.push_back(std::make_unique<juce::AudioParameterInt>(
@@ -165,9 +195,7 @@ void GBCSynthProcessor::updateChannelParameters()
     arpeggiator.setPattern(static_cast<Arpeggiator::Pattern>(arpPattern));
 
     int duty = getChoiceIndex("duty");
-    int envVol = static_cast<int>(apvts.getRawParameterValue("envInitVol")->load());
-    bool envDir = getChoiceIndex("envDir") == 1;
-    int envPer = static_cast<int>(apvts.getRawParameterValue("envPeriod")->load());
+    int envPeak = static_cast<int>(apvts.getRawParameterValue("envInitVol")->load());
     int panMode = getChoiceIndex("pan");
 
     int swpPer = static_cast<int>(apvts.getRawParameterValue("sweepPeriod")->load());
@@ -177,18 +205,29 @@ void GBCSynthProcessor::updateChannelParameters()
     int waveVol = getChoiceIndex("waveVolume");
     int wavePreset = getChoiceIndex("wavePreset");
 
+    // ADSR (shared across Pulse1, Pulse2, Wave)
+    float envAttack  = apvts.getRawParameterValue("envAttack")->load();
+    float envDecay   = apvts.getRawParameterValue("envDecay")->load();
+    float envSustain = apvts.getRawParameterValue("envSustain")->load();
+    float envRelease = apvts.getRawParameterValue("envRelease")->load();
+
     int nClkShift = static_cast<int>(apvts.getRawParameterValue("noiseClockShift")->load());
     int nDivisor = static_cast<int>(apvts.getRawParameterValue("noiseDivisor")->load());
     bool nWidth = apvts.getRawParameterValue("noiseWidth")->load() > 0.5f;
-    int nEnvVol = static_cast<int>(apvts.getRawParameterValue("noiseEnvInitVol")->load());
-    bool nEnvDir = getChoiceIndex("noiseEnvDir") == 1;
-    int nEnvPer = static_cast<int>(apvts.getRawParameterValue("noiseEnvPeriod")->load());
+    int nEnvPeak = static_cast<int>(apvts.getRawParameterValue("noiseEnvInitVol")->load());
 
-    // Apply shared params to every voice in every pool
+    // Noise has its own ADSR
+    float nAttack  = apvts.getRawParameterValue("noiseAttack")->load();
+    float nDecay   = apvts.getRawParameterValue("noiseDecay")->load();
+    float nSustain = apvts.getRawParameterValue("noiseSustain")->load();
+    float nRelease = apvts.getRawParameterValue("noiseRelease")->load();
+
+    // Apply to every voice in every pool
     for (auto& v : pulse1Voices)
     {
         v.setDutyCycle(duty);
-        v.setEnvelope(envVol, envDir, envPer);
+        v.setPeakLevel(envPeak);
+        v.setADSR(envAttack, envDecay, envSustain, envRelease);
         v.setSweep(swpPer, swpNeg, swpShift);
         v.setPan(panMode);
         v.setVibrato(vibOn, vibRate, vibDepth);
@@ -196,7 +235,8 @@ void GBCSynthProcessor::updateChannelParameters()
     for (auto& v : pulse2Voices)
     {
         v.setDutyCycle(duty);
-        v.setEnvelope(envVol, envDir, envPer);
+        v.setPeakLevel(envPeak);
+        v.setADSR(envAttack, envDecay, envSustain, envRelease);
         v.setPan(panMode);
         v.setVibrato(vibOn, vibRate, vibDepth);
     }
@@ -204,6 +244,7 @@ void GBCSynthProcessor::updateChannelParameters()
     {
         v.setVolumeCode(waveVol);
         v.loadPreset(wavePreset);
+        v.setADSR(envAttack, envDecay, envSustain, envRelease);
         v.setPan(panMode);
         v.setVibrato(vibOn, vibRate, vibDepth);
     }
@@ -212,7 +253,8 @@ void GBCSynthProcessor::updateChannelParameters()
         v.setClockShift(nClkShift);
         v.setDivisorCode(nDivisor);
         v.setWidthMode(nWidth);
-        v.setEnvelope(nEnvVol, nEnvDir, nEnvPer);
+        v.setPeakLevel(nEnvPeak);
+        v.setADSR(nAttack, nDecay, nSustain, nRelease);
         v.setPan(panMode);
     }
 }

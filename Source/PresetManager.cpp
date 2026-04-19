@@ -3,338 +3,401 @@
 // ============================================================================
 // Preset definitions
 //
-// Field layout reminder (see PresetManager.h):
-//   name, channel, duty, envInitVol, envDir, envPeriod,
-//   sweepPeriod, sweepNegate, sweepShift,
-//   waveVolume, wavePreset,
-//   noiseClockShift, noiseDivisor, noiseWidth, noiseEnvInitVol, noiseEnvDir, noiseEnvPeriod,
-//   pan, masterVolume,
-//   channelMode, vibratoOn, vibratoRate, vibratoDepth, arpOn, arpRate, arpPattern
+// Field layout (see PresetManager.h for full struct):
+//   core:   name, channel, duty, envInitVol, envDir(legacy), envPeriod(legacy),
+//           sweepPeriod, sweepNegate, sweepShift,
+//           waveVolume, wavePreset,
+//           noiseClockShift, noiseDivisor, noiseWidth,
+//           noiseEnvInitVol, noiseEnvDir(legacy), noiseEnvPeriod(legacy),
+//           pan, masterVolume,
+//   mod:    channelMode, vibratoOn, vibratoRate, vibratoDepth,
+//           arpOn, arpRate, arpPattern,
+//   ADSR:   envAttack, envDecay, envSustain, envRelease,
+//           noiseAttack, noiseDecay, noiseSustain, noiseRelease
 //
-// Legend for condensed comments:
-//   CH1 = Pulse 1, CH2 = Pulse 2, CH3 = Wave, CH4 = Noise
-//   Duty: 0=12.5%, 1=25%, 2=50%, 3=75%
-//   envDir: 0=Down, 1=Up ; Mode: 0=Single, 1=Stack
+// Legacy envDir/envPeriod are kept for saved-state compatibility but no longer
+// drive the DSP — envAttack/Decay/Sustain/Release do.
 // ============================================================================
 
 const std::vector<PresetManager::Preset>& PresetManager::getPresets()
 {
     static const std::vector<Preset> presets = {
         // --------------------------------------------------------------
-        // Pack 0 — Dragon Warrior 3 originals
+        // Pack 0 — Dragon Warrior 3 originals (migrated to ADSR)
         // --------------------------------------------------------------
 
-        // Field Theme — CH1 50% duty, moderate decay
+        // Field Theme
         { "Field Theme",
           0, 2, 12, 0, 3, 0, false, 0,
           1, 0, 0, 0, false, 15, 0, 0,
           1, 0.75f,
-          0, false, 6.0f, 25.0f, false, 8.0f, 0 },
+          0, false, 6.0f, 25.0f, false, 8.0f, 0,
+          5.0f, 700.0f, 0, 50.0f,     5.0f, 150.0f, 0, 50.0f },
 
-        // Battle Theme — CH1 25% duty, tight staccato (no sweep)
+        // Battle Theme
         { "Battle Theme",
           0, 1, 15, 0, 2, 0, false, 0,
           1, 4, 0, 0, false, 15, 0, 0,
           1, 0.85f,
-          0, false, 6.0f, 25.0f, false, 8.0f, 0 },
+          0, false, 6.0f, 25.0f, false, 8.0f, 0,
+          0.0f, 470.0f, 0, 30.0f,     0.0f, 150.0f, 0, 50.0f },
 
-        // Town Theme — CH1 25% duty, soft & gentle
+        // Town Theme
         { "Town Theme",
           0, 1, 10, 0, 4, 0, false, 0,
           1, 0, 0, 0, false, 15, 0, 0,
           1, 0.65f,
-          0, false, 6.0f, 25.0f, false, 8.0f, 0 },
+          0, false, 6.0f, 25.0f, false, 8.0f, 0,
+          10.0f, 940.0f, 0, 80.0f,    0.0f, 150.0f, 0, 50.0f },
 
-        // Dungeon Theme — CH3 wave DW3 bass, brooding
+        // Dungeon Theme
         { "Dungeon Theme",
           2, 2, 15, 0, 0, 0, false, 0,
           1, 4, 0, 0, false, 15, 0, 0,
           1, 0.70f,
-          0, false, 6.0f, 25.0f, false, 8.0f, 0 },
+          0, false, 6.0f, 25.0f, false, 8.0f, 0,
+          20.0f, 0.0f, 15, 300.0f,    0.0f, 150.0f, 0, 50.0f },
 
-        // Percussion Hit — CH4 7-bit narrow, short snappy metallic
+        // Percussion Hit — noise channel so ADSR for noise matters
         { "Percussion Hit",
           3, 2, 15, 0, 0, 0, false, 0,
           1, 0, 2, 0, true, 15, 0, 2,
           1, 0.80f,
-          0, false, 6.0f, 25.0f, false, 8.0f, 0 },
+          0, false, 6.0f, 25.0f, false, 8.0f, 0,
+          0.0f, 200.0f, 0, 20.0f,     0.0f, 60.0f, 0, 10.0f },
 
-        // White Noise SFX — CH4 15-bit wide, slow fade
+        // White Noise SFX
         { "White Noise SFX",
           3, 2, 15, 0, 0, 0, false, 0,
           1, 0, 4, 1, false, 13, 0, 5,
           1, 0.60f,
-          0, false, 6.0f, 25.0f, false, 8.0f, 0 },
+          0, false, 6.0f, 25.0f, false, 8.0f, 0,
+          0.0f, 200.0f, 0, 20.0f,     50.0f, 1200.0f, 0, 200.0f },
 
         // --------------------------------------------------------------
         // Pack A — NES Classic
         // --------------------------------------------------------------
 
-        // NES Mario Lead — CH1 50%, staccato bouncy
         { "NES Mario Lead",
           0, 2, 14, 0, 3, 0, false, 0,
           1, 0, 0, 0, false, 15, 0, 0,
           1, 0.75f,
-          0, false, 6.0f, 25.0f, false, 8.0f, 0 },
+          0, false, 6.0f, 25.0f, false, 8.0f, 0,
+          3.0f, 500.0f, 8, 80.0f,     0.0f, 150.0f, 0, 50.0f },
 
-        // NES Zelda Overworld — CH1 50%, smooth with gentle vib
         { "NES Zelda Overworld",
           0, 2, 13, 0, 4, 0, false, 0,
           1, 0, 0, 0, false, 15, 0, 0,
           1, 0.75f,
-          0, true, 5.0f, 20.0f, false, 8.0f, 0 },
+          0, true, 5.0f, 20.0f, false, 8.0f, 0,
+          8.0f, 300.0f, 11, 200.0f,   0.0f, 150.0f, 0, 50.0f },
 
-        // NES Mega Man Lead — CH2 25%, bright & aggressive
         { "NES Mega Man Lead",
           1, 1, 15, 0, 2, 0, false, 0,
           1, 0, 0, 0, false, 15, 0, 0,
           1, 0.80f,
-          0, false, 6.0f, 25.0f, false, 8.0f, 0 },
+          0, false, 6.0f, 25.0f, false, 8.0f, 0,
+          2.0f, 300.0f, 0, 40.0f,     0.0f, 150.0f, 0, 50.0f },
 
-        // NES Castlevania — CH1 12.5%, thin nasal with deep vibrato
         { "NES Castlevania",
           0, 0, 12, 0, 5, 0, false, 0,
           1, 0, 0, 0, false, 15, 0, 0,
           1, 0.75f,
-          0, true, 6.0f, 40.0f, false, 8.0f, 0 },
+          0, true, 6.0f, 40.0f, false, 8.0f, 0,
+          15.0f, 0.0f, 12, 400.0f,    0.0f, 150.0f, 0, 50.0f },
 
-        // NES Triangle Bass — CH3 triangle, sustained bass
         { "NES Triangle Bass",
           2, 2, 15, 0, 0, 0, false, 0,
           1, 0, 0, 0, false, 15, 0, 0,
           1, 0.80f,
-          0, false, 6.0f, 25.0f, false, 8.0f, 0 },
+          0, false, 6.0f, 25.0f, false, 8.0f, 0,
+          0.0f, 0.0f, 15, 30.0f,      0.0f, 150.0f, 0, 50.0f },
 
-        // NES Mega Man Bass — CH3 triangle with octave arp
         { "NES Mega Man Bass",
           2, 2, 15, 0, 0, 0, false, 0,
           1, 0, 0, 0, false, 15, 0, 0,
           1, 0.80f,
-          0, false, 6.0f, 25.0f, true, 6.0f, 0 },
+          0, false, 6.0f, 25.0f, true, 6.0f, 0,
+          0.0f, 0.0f, 15, 30.0f,      0.0f, 150.0f, 0, 50.0f },
 
-        // NES Snare — CH4 7-bit narrow, snappy
         { "NES Snare",
           3, 2, 15, 0, 0, 0, false, 0,
           1, 0, 1, 0, true, 14, 0, 1,
           1, 0.75f,
-          0, false, 6.0f, 25.0f, false, 8.0f, 0 },
+          0, false, 6.0f, 25.0f, false, 8.0f, 0,
+          0.0f, 200.0f, 0, 20.0f,     0.0f, 100.0f, 0, 5.0f },
 
-        // NES Hi-Hat — CH4 15-bit wide, higher pitch
         { "NES Hi-Hat",
           3, 2, 15, 0, 0, 0, false, 0,
           1, 0, 6, 1, false, 8, 0, 1,
           1, 0.60f,
-          0, false, 6.0f, 25.0f, false, 8.0f, 0 },
+          0, false, 6.0f, 25.0f, false, 8.0f, 0,
+          0.0f, 200.0f, 0, 20.0f,     0.0f, 80.0f, 0, 5.0f },
 
         // --------------------------------------------------------------
-        // Pack C — Arcade SFX (10)
+        // Pack C — Arcade SFX
         // --------------------------------------------------------------
 
-        // Coin Pickup — CH1 25%, fast decay, rising arp
         { "Coin Pickup",
           0, 1, 15, 0, 2, 0, false, 0,
           1, 0, 0, 0, false, 15, 0, 0,
           1, 0.80f,
-          0, false, 6.0f, 25.0f, true, 24.0f, 0 },
+          0, false, 6.0f, 25.0f, true, 24.0f, 0,
+          0.0f, 150.0f, 0, 20.0f,     0.0f, 150.0f, 0, 50.0f },
 
-        // Jump — CH1 50%, short envelope
         { "Jump",
           0, 2, 15, 0, 2, 0, false, 0,
           1, 0, 0, 0, false, 15, 0, 0,
           1, 0.75f,
-          0, false, 6.0f, 25.0f, false, 8.0f, 0 },
+          0, false, 6.0f, 25.0f, false, 8.0f, 0,
+          0.0f, 300.0f, 0, 30.0f,     0.0f, 150.0f, 0, 50.0f },
 
-        // Laser Shot — CH1 12.5%, downward sweep, very fast decay
         { "Laser Shot",
           0, 0, 15, 0, 1, 3, true, 3,
           1, 0, 0, 0, false, 15, 0, 0,
           1, 0.80f,
-          0, false, 6.0f, 25.0f, false, 8.0f, 0 },
+          0, false, 6.0f, 25.0f, false, 8.0f, 0,
+          0.0f, 100.0f, 0, 10.0f,     0.0f, 150.0f, 0, 50.0f },
 
-        // Power-Up — CH2 25%, fast up arp
         { "Power-Up",
           1, 1, 15, 0, 2, 0, false, 0,
           1, 0, 0, 0, false, 15, 0, 0,
           1, 0.80f,
-          0, false, 6.0f, 25.0f, true, 20.0f, 0 },
+          0, false, 6.0f, 25.0f, true, 20.0f, 0,
+          0.0f, 200.0f, 0, 20.0f,     0.0f, 150.0f, 0, 50.0f },
 
-        // 1-Up Jingle — Stack mode with arp up
         { "1-Up Jingle",
           1, 2, 14, 0, 2, 0, false, 0,
           1, 0, 0, 0, false, 12, 0, 1,
           1, 0.75f,
-          1, false, 6.0f, 25.0f, true, 16.0f, 0 },
+          1, false, 6.0f, 25.0f, true, 16.0f, 0,
+          0.0f, 200.0f, 0, 30.0f,     0.0f, 150.0f, 0, 50.0f },
 
-        // Explosion — CH4 wide, long decay
         { "Explosion",
           3, 2, 15, 0, 0, 0, false, 0,
           1, 0, 2, 0, false, 15, 0, 5,
           1, 0.85f,
-          0, false, 6.0f, 25.0f, false, 8.0f, 0 },
+          0, false, 6.0f, 25.0f, false, 8.0f, 0,
+          0.0f, 200.0f, 0, 20.0f,     0.0f, 1200.0f, 0, 200.0f },
 
-        // Hit / Bump — CH4 narrow, instant
         { "Hit / Bump",
           3, 2, 15, 0, 0, 0, false, 0,
           1, 0, 4, 0, true, 10, 0, 0,
           1, 0.75f,
-          0, false, 6.0f, 25.0f, false, 8.0f, 0 },
+          0, false, 6.0f, 25.0f, false, 8.0f, 0,
+          0.0f, 200.0f, 0, 20.0f,     0.0f, 40.0f, 0, 5.0f },
 
-        // Alarm — CH1 50%, extreme vibrato, no decay
         { "Alarm",
           0, 2, 14, 0, 0, 0, false, 0,
           1, 0, 0, 0, false, 15, 0, 0,
           1, 0.70f,
-          0, true, 8.0f, 80.0f, false, 8.0f, 0 },
+          0, true, 8.0f, 80.0f, false, 8.0f, 0,
+          5.0f, 0.0f, 14, 50.0f,      0.0f, 150.0f, 0, 50.0f },
 
-        // Menu Select — CH2 50%, clean click
         { "Menu Select",
           1, 2, 12, 0, 1, 0, false, 0,
           1, 0, 0, 0, false, 15, 0, 0,
           1, 0.70f,
-          0, false, 6.0f, 25.0f, false, 8.0f, 0 },
+          0, false, 6.0f, 25.0f, false, 8.0f, 0,
+          0.0f, 80.0f, 0, 10.0f,      0.0f, 150.0f, 0, 50.0f },
 
-        // Menu Error — CH1 25%, downward sweep
         { "Menu Error",
           0, 1, 14, 0, 2, 1, true, 2,
           1, 0, 0, 0, false, 15, 0, 0,
           1, 0.75f,
-          0, false, 6.0f, 25.0f, false, 8.0f, 0 },
+          0, false, 6.0f, 25.0f, false, 8.0f, 0,
+          0.0f, 250.0f, 0, 20.0f,     0.0f, 150.0f, 0, 50.0f },
 
         // --------------------------------------------------------------
-        // Pack D — Chiptune Instruments (7, Pad requires ADSR — skipped)
+        // Pack D — Chiptune Instruments
         // --------------------------------------------------------------
 
-        // 8-Bit Square Lead — CH1 50%, long sustain
         { "8-Bit Square Lead",
           0, 2, 15, 0, 6, 0, false, 0,
           1, 0, 0, 0, false, 15, 0, 0,
           1, 0.80f,
-          0, true, 5.5f, 15.0f, false, 8.0f, 0 },
+          0, true, 5.5f, 15.0f, false, 8.0f, 0,
+          5.0f, 100.0f, 12, 150.0f,   0.0f, 150.0f, 0, 50.0f },
 
-        // Hollow Lead — CH1 12.5%, thin whistle
         { "Hollow Lead",
           0, 0, 13, 0, 5, 0, false, 0,
           1, 0, 0, 0, false, 15, 0, 0,
           1, 0.75f,
-          0, false, 6.0f, 25.0f, false, 8.0f, 0 },
+          0, false, 6.0f, 25.0f, false, 8.0f, 0,
+          8.0f, 200.0f, 10, 150.0f,   0.0f, 150.0f, 0, 50.0f },
 
-        // Fat Lead (Stack) — stack mode with all channels layered
         { "Fat Lead (Stack)",
           0, 2, 13, 0, 5, 0, false, 0,
           1, 1, 0, 0, false, 12, 0, 1,
           1, 0.70f,
-          1, true, 5.0f, 18.0f, false, 8.0f, 0 },
+          1, true, 5.0f, 18.0f, false, 8.0f, 0,
+          10.0f, 200.0f, 11, 200.0f,  0.0f, 200.0f, 0, 50.0f },
 
-        // Bell Pluck — CH3 DW3 Bass with fast decay (via noteOff behavior)
         { "Bell Pluck",
           2, 2, 15, 0, 0, 0, false, 0,
           1, 4, 0, 0, false, 15, 0, 0,
           1, 0.75f,
-          0, false, 6.0f, 25.0f, false, 8.0f, 0 },
+          0, false, 6.0f, 25.0f, false, 8.0f, 0,
+          0.0f, 400.0f, 0, 50.0f,     0.0f, 150.0f, 0, 50.0f },
 
-        // Soft Triangle Bass — CH3 triangle
         { "Soft Triangle Bass",
           2, 2, 15, 0, 0, 0, false, 0,
           1, 0, 0, 0, false, 15, 0, 0,
           1, 0.75f,
-          0, false, 6.0f, 25.0f, false, 8.0f, 0 },
+          0, false, 6.0f, 25.0f, false, 8.0f, 0,
+          0.0f, 0.0f, 15, 40.0f,      0.0f, 150.0f, 0, 50.0f },
 
-        // Sawtooth Bass — CH3 sawtooth, gritty
         { "Sawtooth Bass",
           2, 2, 15, 0, 0, 0, false, 0,
           1, 1, 0, 0, false, 15, 0, 0,
           1, 0.80f,
-          0, false, 6.0f, 25.0f, false, 8.0f, 0 },
+          0, false, 6.0f, 25.0f, false, 8.0f, 0,
+          0.0f, 0.0f, 15, 40.0f,      0.0f, 150.0f, 0, 50.0f },
 
-        // Arp Melody — CH2 25% with up-down arp
         { "Arp Melody",
           1, 1, 14, 0, 4, 0, false, 0,
           1, 0, 0, 0, false, 15, 0, 0,
           1, 0.75f,
-          0, false, 6.0f, 25.0f, true, 12.0f, 2 },
+          0, false, 6.0f, 25.0f, true, 12.0f, 2,
+          0.0f, 120.0f, 0, 30.0f,     0.0f, 150.0f, 0, 50.0f },
+
+        // Pad (NEW — needs sustain > 0 which ADSR now enables)
+        { "Chiptune Pad (Stack)",
+          2, 2, 13, 0, 0, 0, false, 0,
+          1, 5, 0, 0, false, 10, 0, 2,
+          1, 0.55f,
+          1, true, 3.5f, 15.0f, false, 8.0f, 0,
+          400.0f, 300.0f, 10, 800.0f, 200.0f, 200.0f, 8, 400.0f },
 
         // --------------------------------------------------------------
-        // Pack E — DW3 Expansion (5)
+        // Pack E — DW3 Expansion
         // --------------------------------------------------------------
 
-        // DW3 Overworld Reprise — CH2 25%, gentle vibrato
         { "DW3 Overworld Reprise",
           1, 1, 13, 0, 4, 0, false, 0,
           1, 0, 0, 0, false, 15, 0, 0,
           1, 0.70f,
-          0, true, 4.5f, 18.0f, false, 8.0f, 0 },
+          0, true, 4.5f, 18.0f, false, 8.0f, 0,
+          10.0f, 300.0f, 11, 200.0f,  0.0f, 150.0f, 0, 50.0f },
 
-        // DW3 Cave Echo — CH3 triangle, slow decay
         { "DW3 Cave Echo",
           2, 2, 15, 0, 0, 0, false, 0,
           1, 0, 0, 0, false, 15, 0, 0,
           2, 0.65f,
-          0, true, 3.0f, 20.0f, false, 8.0f, 0 },
+          0, true, 3.0f, 20.0f, false, 8.0f, 0,
+          30.0f, 200.0f, 13, 500.0f,  0.0f, 150.0f, 0, 50.0f },
 
-        // DW3 Boss Battle — Stack mode, aggressive
         { "DW3 Boss Battle",
           0, 1, 15, 0, 2, 0, false, 0,
           1, 4, 3, 0, true, 14, 0, 1,
           1, 0.85f,
-          1, true, 6.5f, 30.0f, false, 8.0f, 0 },
+          1, true, 6.5f, 30.0f, false, 8.0f, 0,
+          0.0f, 400.0f, 0, 30.0f,     0.0f, 80.0f, 0, 10.0f },
 
-        // DW3 Victory Fanfare — CH1 50% with up-arp, stack
         { "DW3 Victory Fanfare",
           0, 2, 15, 0, 3, 0, false, 0,
           1, 0, 0, 0, false, 14, 0, 2,
           1, 0.80f,
-          1, false, 6.0f, 25.0f, true, 14.0f, 0 },
+          1, false, 6.0f, 25.0f, true, 14.0f, 0,
+          0.0f, 700.0f, 0, 100.0f,    0.0f, 400.0f, 0, 50.0f },
 
-        // DW3 Game Over — CH3 DW3 bass, very slow decay
         { "DW3 Game Over",
           2, 2, 15, 0, 0, 0, false, 0,
           1, 4, 0, 0, false, 15, 0, 0,
           1, 0.70f,
-          0, false, 6.0f, 25.0f, false, 8.0f, 0 },
+          0, false, 6.0f, 25.0f, false, 8.0f, 0,
+          15.0f, 0.0f, 14, 600.0f,    0.0f, 150.0f, 0, 50.0f },
 
         // --------------------------------------------------------------
-        // Pack F — Showcase of new waveforms (Phase 2)
+        // Pack F — Waveform showcase (Phase 2)
         // --------------------------------------------------------------
 
-        // Organ Lead — CH3 Half-Sine, warm sustained organ tone with slow vibrato
         { "Organ Lead",
           2, 2, 15, 0, 0, 0, false, 0,
-          1, 5,  // wavePreset 5 = Half-Sine
-          0, 0, false, 15, 0, 0,
+          1, 5, 0, 0, false, 15, 0, 0,
           1, 0.75f,
-          0, true, 4.5f, 15.0f, false, 8.0f, 0 },
+          0, true, 4.5f, 15.0f, false, 8.0f, 0,
+          30.0f, 0.0f, 15, 150.0f,    0.0f, 150.0f, 0, 50.0f },
 
-        // Acid Bass Lead — CH3 Acid Bass waveform, gritty and resonant
         { "Acid Bass Lead",
           2, 2, 15, 0, 0, 0, false, 0,
-          1, 9,  // wavePreset 9 = Acid Bass
-          0, 0, false, 15, 0, 0,
+          1, 9, 0, 0, false, 15, 0, 0,
           1, 0.80f,
-          0, false, 6.0f, 25.0f, false, 8.0f, 0 },
+          0, false, 6.0f, 25.0f, false, 8.0f, 0,
+          0.0f, 300.0f, 8, 80.0f,     0.0f, 150.0f, 0, 50.0f },
 
-        // Bell Arp — CH3 Bell waveform with up-arp for glockenspiel runs
         { "Bell Arp",
           2, 2, 15, 0, 0, 0, false, 0,
-          1, 8,  // wavePreset 8 = Bell
-          0, 0, false, 15, 0, 0,
+          1, 8, 0, 0, false, 15, 0, 0,
           1, 0.70f,
-          0, false, 6.0f, 25.0f, true, 14.0f, 0 },
+          0, false, 6.0f, 25.0f, true, 14.0f, 0,
+          0.0f, 300.0f, 0, 50.0f,     0.0f, 150.0f, 0, 50.0f },
 
-        // Thick Lead — CH3 Detuned Saw, chorus-like stacked lead
         { "Thick Lead",
           2, 2, 15, 0, 0, 0, false, 0,
-          1, 7,  // wavePreset 7 = Detuned Saw
-          0, 0, false, 15, 0, 0,
+          1, 7, 0, 0, false, 15, 0, 0,
           1, 0.75f,
-          0, true, 5.5f, 20.0f, false, 8.0f, 0 },
+          0, true, 5.5f, 20.0f, false, 8.0f, 0,
+          5.0f, 200.0f, 12, 150.0f,   0.0f, 150.0f, 0, 50.0f },
 
-        // Wave Pulse Lead — CH3 Pulse 25%, bright & cutting
         { "Wave Pulse Lead",
           2, 1, 15, 0, 0, 0, false, 0,
-          1, 6,  // wavePreset 6 = Pulse 25%
-          0, 0, false, 15, 0, 0,
+          1, 6, 0, 0, false, 15, 0, 0,
           1, 0.75f,
-          0, false, 6.0f, 25.0f, false, 8.0f, 0 }
+          0, false, 6.0f, 25.0f, false, 8.0f, 0,
+          0.0f, 400.0f, 6, 80.0f,     0.0f, 150.0f, 0, 50.0f },
+
+        // --------------------------------------------------------------
+        // Pack B — SNES RPG (Phase 3) — real sustained timbres enabled by ADSR
+        // --------------------------------------------------------------
+
+        // SNES Flute — soft attack, long sustain, slow release, gentle vibrato
+        { "SNES Flute",
+          2, 2, 13, 0, 0, 0, false, 0,
+          2, 3, 0, 0, false, 15, 0, 0,   // waveVolume=50% to mellow it
+          1, 0.70f,
+          0, true, 5.0f, 25.0f, false, 8.0f, 0,
+          80.0f, 200.0f, 12, 500.0f,  0.0f, 150.0f, 0, 50.0f },
+
+        // SNES Brass — fast attack swell, strong sustain, short release
+        { "SNES Brass",
+          2, 2, 14, 0, 0, 0, false, 0,
+          1, 1, 0, 0, false, 15, 0, 0,   // Sawtooth wave for brassy edge
+          1, 0.75f,
+          0, true, 4.0f, 15.0f, false, 8.0f, 0,
+          30.0f, 150.0f, 13, 300.0f,  0.0f, 150.0f, 0, 50.0f },
+
+        // SNES Choir Pad — slow swelling pad
+        { "SNES Choir Pad",
+          2, 2, 12, 0, 0, 0, false, 0,
+          2, 3, 0, 0, false, 15, 0, 0,   // Sine at 50%
+          1, 0.55f,
+          1, true, 4.0f, 30.0f, false, 8.0f, 0,  // Stack for richness
+          600.0f, 500.0f, 11, 1000.0f,  0.0f, 150.0f, 0, 50.0f },
+
+        // SNES Harp Pluck — quick attack, long release, triangle
+        { "SNES Harp Pluck",
+          2, 2, 15, 0, 0, 0, false, 0,
+          1, 0, 0, 0, false, 15, 0, 0,
+          1, 0.75f,
+          0, false, 6.0f, 25.0f, false, 8.0f, 0,
+          0.0f, 600.0f, 0, 400.0f,    0.0f, 150.0f, 0, 50.0f },
+
+        // SNES Music Box — bell with gentle vibrato, long decay
+        { "SNES Music Box",
+          2, 2, 13, 0, 0, 0, false, 0,
+          3, 8, 0, 0, false, 15, 0, 0,   // Bell wave at 25%
+          1, 0.65f,
+          0, true, 7.0f, 10.0f, false, 8.0f, 0,
+          0.0f, 400.0f, 2, 600.0f,    0.0f, 150.0f, 0, 50.0f },
+
+        // SNES Bass Pluck — DW3 Bass with fast decay
+        { "SNES Bass Pluck",
+          2, 2, 15, 0, 0, 0, false, 0,
+          1, 4, 0, 0, false, 15, 0, 0,
+          1, 0.80f,
+          0, false, 6.0f, 25.0f, false, 8.0f, 0,
+          0.0f, 500.0f, 4, 100.0f,    0.0f, 150.0f, 0, 50.0f }
     };
     return presets;
 }
@@ -353,12 +416,12 @@ void PresetManager::applyPreset(juce::AudioProcessorValueTreeState& apvts, int p
             param->setValueNotifyingHost(param->convertTo0to1(value));
     };
 
-    // Core channel & envelope
+    // Core channel & envelope (peak level)
     setParam("channelSelect", float(p.channel));
     setParam("duty", float(p.duty));
     setParam("envInitVol", float(p.envInitVol));
-    setParam("envDir", float(p.envDir));
-    setParam("envPeriod", float(p.envPeriod));
+    setParam("envDir", float(p.envDir));         // legacy — kept in state
+    setParam("envPeriod", float(p.envPeriod));   // legacy
 
     // Sweep
     setParam("sweepPeriod", float(p.sweepPeriod));
@@ -374,14 +437,14 @@ void PresetManager::applyPreset(juce::AudioProcessorValueTreeState& apvts, int p
     setParam("noiseDivisor", float(p.noiseDivisor));
     setParam("noiseWidth", p.noiseWidth ? 1.0f : 0.0f);
     setParam("noiseEnvInitVol", float(p.noiseEnvInitVol));
-    setParam("noiseEnvDir", float(p.noiseEnvDir));
-    setParam("noiseEnvPeriod", float(p.noiseEnvPeriod));
+    setParam("noiseEnvDir", float(p.noiseEnvDir));         // legacy
+    setParam("noiseEnvPeriod", float(p.noiseEnvPeriod));   // legacy
 
     // Output
     setParam("pan", float(p.pan));
     setParam("masterVolume", p.masterVolume);
 
-    // Channel mode + modulation (extended fields)
+    // Channel mode + modulation
     setParam("channelMode", float(p.channelMode));
     setParam("vibratoOn", p.vibratoOn ? 1.0f : 0.0f);
     setParam("vibratoRate", p.vibratoRate);
@@ -389,6 +452,16 @@ void PresetManager::applyPreset(juce::AudioProcessorValueTreeState& apvts, int p
     setParam("arpOn", p.arpOn ? 1.0f : 0.0f);
     setParam("arpRate", p.arpRate);
     setParam("arpPattern", float(p.arpPattern));
+
+    // ADSR envelopes (Phase 3)
+    setParam("envAttack",  p.envAttack);
+    setParam("envDecay",   p.envDecay);
+    setParam("envSustain", float(p.envSustain));
+    setParam("envRelease", p.envRelease);
+    setParam("noiseAttack",  p.noiseAttack);
+    setParam("noiseDecay",   p.noiseDecay);
+    setParam("noiseSustain", float(p.noiseSustain));
+    setParam("noiseRelease", p.noiseRelease);
 }
 
 int PresetManager::getNumPresets()

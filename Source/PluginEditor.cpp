@@ -97,12 +97,15 @@ GBCSynthEditor::GBCSynthEditor(GBCSynthProcessor& p)
     setupRotarySlider(envVolSlider);
     envVolAttachment = std::make_unique<SliderAttachment>(processorRef.getAPVTS(), "envInitVol", envVolSlider);
 
-    envDirCombo.addItemList(juce::StringArray{ "Down", "Up" }, 1);
-    addAndMakeVisible(envDirCombo);
-    envDirAttachment = std::make_unique<ComboBoxAttachment>(processorRef.getAPVTS(), "envDir", envDirCombo);
-
-    setupRotarySlider(envPeriodSlider);
-    envPeriodAttachment = std::make_unique<SliderAttachment>(processorRef.getAPVTS(), "envPeriod", envPeriodSlider);
+    // ADSR envelope sliders
+    setupRotarySlider(envAttackSlider);
+    envAttackAttachment = std::make_unique<SliderAttachment>(processorRef.getAPVTS(), "envAttack", envAttackSlider);
+    setupRotarySlider(envDecaySlider);
+    envDecayAttachment = std::make_unique<SliderAttachment>(processorRef.getAPVTS(), "envDecay", envDecaySlider);
+    setupRotarySlider(envSustainSlider);
+    envSustainAttachment = std::make_unique<SliderAttachment>(processorRef.getAPVTS(), "envSustain", envSustainSlider);
+    setupRotarySlider(envReleaseSlider);
+    envReleaseAttachment = std::make_unique<SliderAttachment>(processorRef.getAPVTS(), "envRelease", envReleaseSlider);
 
     setupRotarySlider(sweepPeriodSlider);
     sweepPeriodAttachment = std::make_unique<SliderAttachment>(processorRef.getAPVTS(), "sweepPeriod", sweepPeriodSlider);
@@ -138,12 +141,14 @@ GBCSynthEditor::GBCSynthEditor(GBCSynthProcessor& p)
     setupRotarySlider(noiseEnvVolSlider);
     noiseEnvVolAttachment = std::make_unique<SliderAttachment>(processorRef.getAPVTS(), "noiseEnvInitVol", noiseEnvVolSlider);
 
-    noiseEnvDirCombo.addItemList(juce::StringArray{ "Down", "Up" }, 1);
-    addAndMakeVisible(noiseEnvDirCombo);
-    noiseEnvDirAttachment = std::make_unique<ComboBoxAttachment>(processorRef.getAPVTS(), "noiseEnvDir", noiseEnvDirCombo);
-
-    setupRotarySlider(noiseEnvPeriodSlider);
-    noiseEnvPeriodAttachment = std::make_unique<SliderAttachment>(processorRef.getAPVTS(), "noiseEnvPeriod", noiseEnvPeriodSlider);
+    setupRotarySlider(noiseAttackSlider);
+    noiseAttackAttachment = std::make_unique<SliderAttachment>(processorRef.getAPVTS(), "noiseAttack", noiseAttackSlider);
+    setupRotarySlider(noiseDecaySlider);
+    noiseDecayAttachment = std::make_unique<SliderAttachment>(processorRef.getAPVTS(), "noiseDecay", noiseDecaySlider);
+    setupRotarySlider(noiseSustainSlider);
+    noiseSustainAttachment = std::make_unique<SliderAttachment>(processorRef.getAPVTS(), "noiseSustain", noiseSustainSlider);
+    setupRotarySlider(noiseReleaseSlider);
+    noiseReleaseAttachment = std::make_unique<SliderAttachment>(processorRef.getAPVTS(), "noiseRelease", noiseReleaseSlider);
 
     // --- Common controls ---
     panCombo.addItemList(juce::StringArray{ "Left", "Center", "Right" }, 1);
@@ -157,18 +162,22 @@ GBCSynthEditor::GBCSynthEditor(GBCSynthProcessor& p)
 
     // --- Labels ---
     setupLabel(dutyLabel, "DUTY");
-    setupLabel(envVolLabel, "VOL");
-    setupLabel(envPeriodLabel, "PERIOD");
-    setupLabel(envDirLabel, "DIR");
+    setupLabel(envVolLabel, "PEAK");
+    setupLabel(envAttackLabel, "ATK");
+    setupLabel(envDecayLabel, "DEC");
+    setupLabel(envSustainLabel, "SUS");
+    setupLabel(envReleaseLabel, "REL");
     setupLabel(sweepPeriodLabel, "SWP PER");
     setupLabel(sweepShiftLabel, "SWP SFT");
     setupLabel(waveVolLabel, "VOLUME");
     setupLabel(wavePresetLabel, "PRESET");
     setupLabel(noiseClockLabel, "CLK SHIFT");
     setupLabel(noiseDivLabel, "DIVISOR");
-    setupLabel(noiseEnvVolLabel, "VOL");
-    setupLabel(noiseEnvPeriodLabel, "PERIOD");
-    setupLabel(noiseEnvDirLabel, "DIR");
+    setupLabel(noiseEnvVolLabel, "PEAK");
+    setupLabel(noiseAttackLabel, "ATK");
+    setupLabel(noiseDecayLabel, "DEC");
+    setupLabel(noiseSustainLabel, "SUS");
+    setupLabel(noiseReleaseLabel, "REL");
     setupLabel(panLabel, "PAN");
     setupLabel(masterVolLabel, "MASTER");
 
@@ -362,13 +371,19 @@ void GBCSynthEditor::updateChannelVisibility(int channel)
     bool showPulse = (channel == 0 || channel == 1);
     bool showSweep = (channel == 0);
     dutyCombo.setVisible(showPulse);
-    envVolSlider.setVisible(showPulse);
-    envDirCombo.setVisible(showPulse);
-    envPeriodSlider.setVisible(showPulse);
+    // Envelope sliders are shown for Pulse AND Wave (both use shared envInitVol + ADSR)
+    bool showEnvelope = (channel == 0 || channel == 1 || channel == 2);
+    envVolSlider.setVisible(showEnvelope);
+    envAttackSlider.setVisible(showEnvelope);
+    envDecaySlider.setVisible(showEnvelope);
+    envSustainSlider.setVisible(showEnvelope);
+    envReleaseSlider.setVisible(showEnvelope);
+    envAttackLabel.setVisible(showEnvelope);
+    envDecayLabel.setVisible(showEnvelope);
+    envSustainLabel.setVisible(showEnvelope);
+    envReleaseLabel.setVisible(showEnvelope);
     dutyLabel.setVisible(showPulse);
-    envVolLabel.setVisible(showPulse);
-    envDirLabel.setVisible(showPulse);
-    envPeriodLabel.setVisible(showPulse);
+    envVolLabel.setVisible(showEnvelope);
 
     sweepPeriodSlider.setVisible(showSweep);
     sweepShiftSlider.setVisible(showSweep);
@@ -390,13 +405,17 @@ void GBCSynthEditor::updateChannelVisibility(int channel)
     noiseDivisorSlider.setVisible(showNoise);
     noiseWidthToggle.setVisible(showNoise);
     noiseEnvVolSlider.setVisible(showNoise);
-    noiseEnvDirCombo.setVisible(showNoise);
-    noiseEnvPeriodSlider.setVisible(showNoise);
+    noiseAttackSlider.setVisible(showNoise);
+    noiseDecaySlider.setVisible(showNoise);
+    noiseSustainSlider.setVisible(showNoise);
+    noiseReleaseSlider.setVisible(showNoise);
+    noiseAttackLabel.setVisible(showNoise);
+    noiseDecayLabel.setVisible(showNoise);
+    noiseSustainLabel.setVisible(showNoise);
+    noiseReleaseLabel.setVisible(showNoise);
     noiseClockLabel.setVisible(showNoise);
     noiseDivLabel.setVisible(showNoise);
     noiseEnvVolLabel.setVisible(showNoise);
-    noiseEnvDirLabel.setVisible(showNoise);
-    noiseEnvPeriodLabel.setVisible(showNoise);
 
     repaint();
 }
@@ -553,35 +572,31 @@ void GBCSynthEditor::resized()
     channelPanelRect = channelAreaFull;
     auto controlsArea = channelAreaFull.reduced(5, 25);
 
-    // --- Pulse layout ---
+    // --- Pulse layout: Duty + 5-knob envelope (PEAK, ATK, DEC, SUS, REL) + Sweep ---
     {
         auto pulseArea = controlsArea;
-        int knobSize = 60;
-        int comboW = 80;
-        int comboH = 24;
-        int spacing = 10;
+        const int knobSize = 55;
+        const int comboW = 78;
+        const int comboH = 24;
+        const int spacing = 6;
 
-        // Duty cycle section
+        // Duty cycle section (combo)
         auto dutyArea = pulseArea.removeFromLeft(comboW + spacing);
         dutyLabel.setBounds(dutyArea.removeFromTop(14));
         dutyCombo.setBounds(dutyArea.removeFromTop(comboH).reduced(0, 2));
 
-        // Envelope section
-        auto envArea = pulseArea.removeFromLeft(3 * (knobSize + spacing));
-        auto envRow = envArea;
-        auto envLabels = envRow.removeFromTop(14);
-
-        auto volArea = envRow.removeFromLeft(knobSize + spacing);
-        envVolLabel.setBounds(envLabels.removeFromLeft(knobSize + spacing));
-        envVolSlider.setBounds(volArea.removeFromTop(knobSize));
-
-        auto dirArea = envRow.removeFromLeft(comboW + spacing);
-        envDirLabel.setBounds(envLabels.removeFromLeft(comboW + spacing));
-        envDirCombo.setBounds(dirArea.removeFromTop(comboH).reduced(0, 2));
-
-        auto perArea = envRow.removeFromLeft(knobSize + spacing);
-        envPeriodLabel.setBounds(envLabels.removeFromLeft(knobSize + spacing));
-        envPeriodSlider.setBounds(perArea.removeFromTop(knobSize));
+        // Envelope section: 5 knobs in a row (PEAK | A | D | S | R)
+        auto layoutKnob = [&](juce::Label& lbl, juce::Slider& knob)
+        {
+            auto col = pulseArea.removeFromLeft(knobSize + spacing);
+            lbl.setBounds(col.removeFromTop(14));
+            knob.setBounds(col.removeFromTop(knobSize));
+        };
+        layoutKnob(envVolLabel, envVolSlider);
+        layoutKnob(envAttackLabel, envAttackSlider);
+        layoutKnob(envDecayLabel, envDecaySlider);
+        layoutKnob(envSustainLabel, envSustainSlider);
+        layoutKnob(envReleaseLabel, envReleaseSlider);
 
         // Sweep section (CH1 only)
         pulseArea.removeFromLeft(spacing);
@@ -599,56 +614,78 @@ void GBCSynthEditor::resized()
         sweepNegateToggle.setBounds(sweepArea.removeFromLeft(90).removeFromTop(24));
     }
 
-    // --- Wave layout ---
+    // --- Wave layout: Volume + Preset combos + ADSR knobs + wave editor ---
     {
         auto waveArea = controlsArea;
-        int comboW = 100;
+        const int comboW = 100;
+        const int knobSize = 55;
+        const int spacing = 6;
 
         auto topRow = waveArea.removeFromTop(30);
         waveVolLabel.setBounds(topRow.removeFromLeft(50));
         waveVolumeCombo.setBounds(topRow.removeFromLeft(comboW).reduced(0, 3));
-        topRow.removeFromLeft(20);
+        topRow.removeFromLeft(12);
         wavePresetLabel.setBounds(topRow.removeFromLeft(50));
-        wavePresetCombo.setBounds(topRow.removeFromLeft(comboW).reduced(0, 3));
+        wavePresetCombo.setBounds(topRow.removeFromLeft(comboW + 20).reduced(0, 3));
 
         waveArea.removeFromTop(5);
-        waveEditor.setBounds(waveArea.reduced(0, 5));
+
+        // ADSR + peak knobs row — same 5 knobs as pulse (they share the envelope params)
+        auto adsrRow = waveArea.removeFromTop(knobSize + 14);
+        auto layoutKnob = [&](juce::Label& lbl, juce::Slider& knob)
+        {
+            auto col = adsrRow.removeFromLeft(knobSize + spacing);
+            lbl.setBounds(col.removeFromTop(14));
+            knob.setBounds(col.removeFromTop(knobSize));
+        };
+        // Note: these are the same label/slider instances as pulse envelope — this
+        // just positions them identically in the wave-visible layout.
+        layoutKnob(envVolLabel, envVolSlider);
+        layoutKnob(envAttackLabel, envAttackSlider);
+        layoutKnob(envDecayLabel, envDecaySlider);
+        layoutKnob(envSustainLabel, envSustainSlider);
+        layoutKnob(envReleaseLabel, envReleaseSlider);
+
+        waveArea.removeFromTop(4);
+        waveEditor.setBounds(waveArea.reduced(0, 2));
     }
 
-    // --- Noise layout ---
+    // --- Noise layout: LFSR controls on top row, ADSR on bottom row ---
     {
         auto noiseArea = controlsArea;
-        int knobSize = 60;
-        int comboW = 80;
-        int comboH = 24;
-        int spacing = 10;
+        const int knobSize = 55;
+        const int spacing = 6;
 
-        auto noiseLabels = noiseArea.removeFromTop(14);
+        // Top row: Clock Shift + Divisor knobs + 7-bit toggle
+        auto topRow = noiseArea.removeFromTop(knobSize + 14);
+        {
+            auto clkArea = topRow.removeFromLeft(knobSize + spacing);
+            noiseClockLabel.setBounds(clkArea.removeFromTop(14));
+            noiseClockShiftSlider.setBounds(clkArea.removeFromTop(knobSize));
 
-        auto clkArea = noiseArea.removeFromLeft(knobSize + spacing);
-        noiseClockLabel.setBounds(noiseLabels.removeFromLeft(knobSize + spacing));
-        noiseClockShiftSlider.setBounds(clkArea.removeFromTop(knobSize));
+            auto divArea = topRow.removeFromLeft(knobSize + spacing);
+            noiseDivLabel.setBounds(divArea.removeFromTop(14));
+            noiseDivisorSlider.setBounds(divArea.removeFromTop(knobSize));
 
-        auto divArea = noiseArea.removeFromLeft(knobSize + spacing);
-        noiseDivLabel.setBounds(noiseLabels.removeFromLeft(knobSize + spacing));
-        noiseDivisorSlider.setBounds(divArea.removeFromTop(knobSize));
+            topRow.removeFromLeft(spacing);
+            noiseWidthToggle.setBounds(topRow.removeFromLeft(110).removeFromTop(24).translated(0, 20));
+        }
 
-        noiseWidthToggle.setBounds(noiseArea.removeFromLeft(110).removeFromTop(24));
-        noiseArea.removeFromLeft(spacing);
+        noiseArea.removeFromTop(4);
 
-        // Noise envelope
-        noiseLabels = noiseArea.removeFromTop(0);  // Labels already consumed
-        auto nVolArea = noiseArea.removeFromLeft(knobSize + spacing);
-        noiseEnvVolLabel.setBounds(nVolArea.removeFromBottom(14));
-        noiseEnvVolSlider.setBounds(nVolArea.removeFromTop(knobSize));
-
-        auto nDirArea = noiseArea.removeFromLeft(comboW + spacing);
-        noiseEnvDirLabel.setBounds(nDirArea.removeFromBottom(14));
-        noiseEnvDirCombo.setBounds(nDirArea.removeFromTop(comboH).reduced(0, 2));
-
-        auto nPerArea = noiseArea.removeFromLeft(knobSize + spacing);
-        noiseEnvPeriodLabel.setBounds(nPerArea.removeFromBottom(14));
-        noiseEnvPeriodSlider.setBounds(nPerArea.removeFromTop(knobSize));
+        // Bottom row: Noise envelope PEAK + ADSR
+        auto adsrRow = noiseArea.removeFromTop(knobSize + 14);
+        auto layoutKnob = [&](juce::Label& lbl, juce::Slider& knob)
+        {
+            auto col = adsrRow.removeFromLeft(knobSize + spacing);
+            lbl.setBounds(col.removeFromTop(14));
+            knob.setBounds(col.removeFromTop(knobSize));
+        };
+        layoutKnob(noiseEnvVolLabel, noiseEnvVolSlider);
+        layoutKnob(noiseAttackLabel, noiseAttackSlider);
+        layoutKnob(noiseDecayLabel, noiseDecaySlider);
+        layoutKnob(noiseSustainLabel, noiseSustainSlider);
+        layoutKnob(noiseReleaseLabel, noiseReleaseSlider);
     }
 
     area.removeFromTop(5);

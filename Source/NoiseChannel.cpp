@@ -15,30 +15,21 @@ void NoiseChannel::reset()
     noiseClockHz = 0.0;
     clockAccumulator = 0.0;
     outputBit = 0;
-    envInitialVolume = 15;
-    envDirection = false;
-    envPeriod = 0;
-    currentVolume = 0;
-    envTimer = 0.0;
     active = false;
     noteHeld = false;
+    adsr.reset();
+    adsr.setPeakLevel(15.0f);
 }
 
 void NoiseChannel::setSampleRate(double sampleRate)
 {
     hostSampleRate = sampleRate;
+    adsr.setSampleRate(sampleRate);
 }
 
-void NoiseChannel::noteOn(int /*period*/, float velocity)
+void NoiseChannel::noteOn(int /*period*/, float /*velocity*/)
 {
-    // Noise channel doesn't use period from MIDI note.
-    // Clock shift and divisor are set via parameters.
-    // Envelope initial volume comes from setEnvelope() (APVTS parameter).
-    (void)velocity;
-    currentVolume = envInitialVolume;
-    envTimer = 0.0;
-
-    // Reset LFSR
+    // Reset LFSR on trigger
     lfsr = 0x7FFF;
     clockAccumulator = 0.0;
     outputBit = 0;
@@ -48,8 +39,9 @@ void NoiseChannel::noteOn(int /*period*/, float velocity)
     if (clockShift < 14)
         noiseClockHz = GBC_CLOCK_HZ / static_cast<double>(divisor << clockShift);
     else
-        noiseClockHz = 0.0;  // Shift 14+ effectively silences
+        noiseClockHz = 0.0;
 
+    adsr.noteOn();
     active = (noiseClockHz > 0.0);
     noteHeld = true;
 }
@@ -57,11 +49,7 @@ void NoiseChannel::noteOn(int /*period*/, float velocity)
 void NoiseChannel::noteOff()
 {
     noteHeld = false;
-
-    // If envelope is decaying (period > 0, direction down), let it finish naturally.
-    // Otherwise stop immediately — without active decay the note would play forever.
-    if (envPeriod == 0 || envDirection)
-        active = false;
+    adsr.noteOff();
 }
 
 float NoiseChannel::processSample()
@@ -69,14 +57,10 @@ float NoiseChannel::processSample()
     if (!active)
         return 0.0f;
 
-    // Clock the envelope
-    clockEnvelope();
-
-    // If volume reached 0 and decreasing, potentially deactivate
-    if (currentVolume == 0 && !envDirection)
+    float envLevel = adsr.tick();
+    if (!adsr.isActive())
     {
-        if (!noteHeld)
-            active = false;
+        active = false;
         return 0.0f;
     }
 
@@ -88,10 +72,8 @@ float NoiseChannel::processSample()
         outputBit = clockLFSR();
     }
 
-    // Output: LFSR output bit scaled by volume
     float sample = outputBit ? 1.0f : -1.0f;
-    sample *= (static_cast<float>(currentVolume) / 15.0f);
-
+    sample *= (envLevel / 15.0f);
     return sample;
 }
 
@@ -115,52 +97,21 @@ void NoiseChannel::setWidthMode(bool narrow)
     narrowMode = narrow;
 }
 
-void NoiseChannel::setEnvelope(int initialVol, bool direction, int period)
+void NoiseChannel::setPeakLevel(int peak)
 {
-    envInitialVolume = std::clamp(initialVol, 0, 15);
-    envDirection = direction;
-    envPeriod = std::clamp(period, 0, 7);
+    adsr.setPeakLevel(static_cast<float>(std::clamp(peak, 0, 15)));
+}
+
+void NoiseChannel::setADSR(float attackMs, float decayMs, float sustainLevel, float releaseMs)
+{
+    adsr.setParams(attackMs, decayMs, sustainLevel, releaseMs);
 }
 
 int NoiseChannel::clockLFSR()
 {
-    // XOR bits 0 and 1
     int bit = (lfsr ^ (lfsr >> 1)) & 1;
-
-    // Shift right, feed back to bit 14
     lfsr = static_cast<uint16_t>((lfsr >> 1) | (bit << 14));
-
-    // In narrow (7-bit) mode, also set bit 6
     if (narrowMode)
-    {
         lfsr = static_cast<uint16_t>((lfsr & ~(1 << 6)) | (bit << 6));
-    }
-
-    // Output is inverted bit 0
     return ~lfsr & 1;
-}
-
-void NoiseChannel::clockEnvelope()
-{
-    if (envPeriod == 0) return;
-
-    envTimer += 1.0 / hostSampleRate;
-    double envClockInterval = 1.0 / ENVELOPE_CLOCK_HZ;
-    double envStepInterval = envClockInterval * envPeriod;
-
-    while (envTimer >= envStepInterval)
-    {
-        envTimer -= envStepInterval;
-
-        if (envDirection)
-        {
-            if (currentVolume < 15)
-                currentVolume++;
-        }
-        else
-        {
-            if (currentVolume > 0)
-                currentVolume--;
-        }
-    }
 }

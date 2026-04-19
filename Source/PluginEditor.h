@@ -57,8 +57,8 @@ private:
 
     // Pulse controls
     juce::ComboBox dutyCombo;
-    juce::Slider envVolSlider, envPeriodSlider;
-    juce::ComboBox envDirCombo;
+    juce::Slider envVolSlider;
+    juce::Slider envAttackSlider, envDecaySlider, envSustainSlider, envReleaseSlider;
     juce::Slider sweepPeriodSlider, sweepShiftSlider;
     juce::ToggleButton sweepNegateToggle{ "Negate" };
 
@@ -69,31 +69,34 @@ private:
     // Noise controls
     juce::Slider noiseClockShiftSlider, noiseDivisorSlider;
     juce::ToggleButton noiseWidthToggle{ "7-bit Mode" };
-    juce::Slider noiseEnvVolSlider, noiseEnvPeriodSlider;
-    juce::ComboBox noiseEnvDirCombo;
+    juce::Slider noiseEnvVolSlider;
+    juce::Slider noiseAttackSlider, noiseDecaySlider, noiseSustainSlider, noiseReleaseSlider;
 
     // Common controls
     juce::ComboBox panCombo;
     juce::Slider masterVolumeSlider;
 
     // Labels
-    juce::Label dutyLabel, envVolLabel, envPeriodLabel, envDirLabel;
+    juce::Label dutyLabel, envVolLabel;
+    juce::Label envAttackLabel, envDecayLabel, envSustainLabel, envReleaseLabel;
     juce::Label sweepPeriodLabel, sweepShiftLabel;
     juce::Label waveVolLabel, wavePresetLabel;
-    juce::Label noiseClockLabel, noiseDivLabel, noiseEnvVolLabel, noiseEnvPeriodLabel, noiseEnvDirLabel;
+    juce::Label noiseClockLabel, noiseDivLabel, noiseEnvVolLabel;
+    juce::Label noiseAttackLabel, noiseDecayLabel, noiseSustainLabel, noiseReleaseLabel;
     juce::Label panLabel, masterVolLabel;
 
     // Waveform display
     WaveformDisplay waveformDisplay;
 
     // Attachments
-    std::unique_ptr<ComboBoxAttachment> dutyAttachment, envDirAttachment, panAttachment;
+    std::unique_ptr<ComboBoxAttachment> dutyAttachment, panAttachment;
     std::unique_ptr<ComboBoxAttachment> waveVolumeAttachment, wavePresetAttachment;
-    std::unique_ptr<ComboBoxAttachment> noiseEnvDirAttachment;
-    std::unique_ptr<SliderAttachment> envVolAttachment, envPeriodAttachment;
+    std::unique_ptr<SliderAttachment> envVolAttachment;
+    std::unique_ptr<SliderAttachment> envAttackAttachment, envDecayAttachment, envSustainAttachment, envReleaseAttachment;
     std::unique_ptr<SliderAttachment> sweepPeriodAttachment, sweepShiftAttachment;
     std::unique_ptr<SliderAttachment> noiseClockShiftAttachment, noiseDivisorAttachment;
-    std::unique_ptr<SliderAttachment> noiseEnvVolAttachment, noiseEnvPeriodAttachment;
+    std::unique_ptr<SliderAttachment> noiseEnvVolAttachment;
+    std::unique_ptr<SliderAttachment> noiseAttackAttachment, noiseDecayAttachment, noiseSustainAttachment, noiseReleaseAttachment;
     std::unique_ptr<SliderAttachment> masterVolumeAttachment;
     std::unique_ptr<ButtonAttachment> sweepNegateAttachment, noiseWidthAttachment;
 

@@ -11,7 +11,7 @@ TEST_CASE("NoiseChannel basic output", "[noise]")
     ch.setClockShift(0);
     ch.setDivisorCode(0);
     ch.setWidthMode(false);  // 15-bit
-    ch.setEnvelope(15, false, 0);
+    ch.setPeakLevel(15); ch.setADSR(0.0f, 0.0f, 15.0f, 0.0f);
 
     ch.noteOn(0, 1.0f);
     REQUIRE(ch.isActive());
@@ -32,7 +32,7 @@ TEST_CASE("NoiseChannel 15-bit produces pseudo-random output", "[noise]")
     ch.setClockShift(0);
     ch.setDivisorCode(0);
     ch.setWidthMode(false);
-    ch.setEnvelope(15, false, 0);
+    ch.setPeakLevel(15); ch.setADSR(0.0f, 0.0f, 15.0f, 0.0f);
 
     ch.noteOn(0, 1.0f);
 
@@ -56,7 +56,7 @@ TEST_CASE("NoiseChannel 7-bit mode sounds different from 15-bit", "[noise]")
         ch.setClockShift(2);
         ch.setDivisorCode(0);
         ch.setWidthMode(narrowMode);
-        ch.setEnvelope(15, false, 0);
+        ch.setPeakLevel(15); ch.setADSR(0.0f, 0.0f, 15.0f, 0.0f);
         ch.noteOn(0, 1.0f);
 
         std::vector<float> samples;
@@ -86,7 +86,7 @@ TEST_CASE("NoiseChannel envelope decay", "[noise]")
     ch.setClockShift(0);
     ch.setDivisorCode(0);
     ch.setWidthMode(false);
-    ch.setEnvelope(15, false, 1);  // Fast decay
+    ch.setPeakLevel(15); ch.setADSR(0.0f, 200.0f, 0.0f, 0.0f);  // Fast decay
 
     ch.noteOn(0, 1.0f);
 
